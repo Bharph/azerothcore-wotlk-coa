@@ -1063,6 +1063,18 @@ void ApplyAscensionClassMechanics(SpellInfo* spellInfo)
         else
             spellInfo->EquippedItemInventoryTypeMask = int32(repair->After);
     }
+
+    if (spellInfo->Id == 93461)
+    {
+        // Adventurer's Satchel (item 1397884) casts this on use to hand out its reward.
+        // Its DBC record carries a stray equipped-weapon requirement, so players without
+        // a matching weapon equipped cannot open a satchel they already own.
+        if (spellInfo->EquippedItemClass >= 0)
+            spellInfo->EquippedItemClass = -1;
+        else
+            LOG_ERROR("module.ascension_compat",
+                "Skipped unexpected Adventurer's Satchel open-spell record {}", spellInfo->Id);
+    }
 }
 
 void SynchronizeAscensionClassMechanics(Player* player)
