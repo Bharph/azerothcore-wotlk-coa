@@ -297,6 +297,42 @@ An optional `spell` restricts the count to creatures with that aura; `caster` ca
 ownership; `aura_amount` also accepts an effect index (0..2, default 0). Missing auras yield zero;
 check aura presence separately when zero is a valid effect amount. Permanent aura duration is -1.
 
+## Effective spell report
+
+The server console command `coa spellreport <file>` (console only) writes a read-only JSON report of the spells
+custom classes can obtain and the spells they reach. `AscensionCompat.SpellReport.StartupFile` writes the same
+report once at startup. It reads the loaded server state: SpellInfo after corrections and module contracts,
+`spell_proc`, `spell_bonus_data`, `spell_linked_spell` and `spell_script_names`.
+
+- Roots: module grant tables (class spells, live baseline spells/proficiencies, CoA talent and automatic entries,
+  progression ranks, taught abilities, talent replacements), racial and class skill lines, player-create spells,
+  DBC talents and `SPELL_EFFECT_LEARN_SPELL` targets. Each root records its sources. `grant` is false when only
+  skill lines provide the spell.
+- Closure, up to six edges: effective `TriggerSpell`; `MiscValue` spell ids on effects 164-198 and auras 317-366;
+  and positive `spell_linked_spell` runtime lookups. Raw DBC trigger/misc edges that a correction changed are also
+  followed. Spells reachable only through them are marked `"effective": false` and excluded from the counts.
+- Per spell and slot: effective values, and under `raw` the Spell.dbc values that differ. Also included: effect and
+  aura handler kinds (`handler`, `null`, `unused`, `no_immediate`, `missing` for a null table entry,
+  `out_of_range`), trigger-aura type, `spell_proc` entry, bonus data, bound scripts, rank chain, linked spells and
+  the roots that reach it.
+- Summary counts for all closure spells and for the `grant` scope: silent slots by primitive, dummy slots without
+  script bindings, proc auras (42/43/231) without proc data, rewrites and masking patterns, spellmod ops of 32 or
+  more, and aura 112 private selectors 20000-20017.
+
+C++ `CastSpell` literals, summon AI casts, global script hooks and core id switches are not visible to the report.
+The [effective spell report scenario](scenarios/effective-spell-report.json) writes two reports into the run
+directory. Validate them with:
+
+```powershell
+python apps/coa-gameplay-test/spell_report.py <run-dir>/effective-spell-report.json `
+  --same-as <run-dir>/effective-spell-report-repeat.json --dbc <DataDir>/dbc/Spell.dbc --source-root . `
+  --expect-root 801576:class_spell --expect-root 500059:class_skill_line --expect-root 804057:coa_talent
+```
+
+The validator checks the schema and references, then recomputes every summary count from the spell rows. It also
+checks raw values against Spell.dbc and dispatch kinds against the handler tables in the source. It prints the
+summary. Spells found only in `spell_dbc` rows are counted, not compared.
+
 ## Evidence boundaries
 
 The test owns socketless sessions outside the network session manager. Map updates and normal spell/item
