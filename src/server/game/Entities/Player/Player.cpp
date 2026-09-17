@@ -12018,6 +12018,11 @@ void Player::SetGroup(Group* group, int8 subgroup)
 
 void Player::SendInitialPacketsBeforeAddToMap()
 {
+    // LoadFromDB has already returned at this point, so persisted character settings (e.g. an active
+    // specialization) are reliably available for scripts that need to grant/revoke spells before the
+    // initial spell list and action buttons below are built from m_spells/m_actionButtons.
+    sScriptMgr->OnPlayerBeforeSendInitialSpells(this);
+
     /// Pass 'this' as argument because we're not stored in ObjectAccessor yet
     GetSocial()->SendSocialList(this, SOCIAL_FLAG_ALL);
 

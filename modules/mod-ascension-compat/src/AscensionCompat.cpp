@@ -1228,6 +1228,29 @@ public:
     SendCharacterAdvancementAuthentication(player);
   }
 
+  // Player::_LoadActions (during LoadFromDB) drops any action button bound to a TaughtAbilities spell,
+  // because that spell is always PLAYERSPELL_TEMPORARY and therefore never persisted, so it is not yet
+  // known when action buttons are validated at load time. SynchronizeTaughtAbilities normally repairs
+  // the spell itself, but only runs from the real OnPlayerLogin hook, which fires after action buttons
+  // and the initial spell list have already been sent — one login too late to save the button. Running
+  // the same synchronization here, from the new hook fired at the top of
+  // Player::SendInitialPacketsBeforeAddToMap (i.e. after LoadFromDB has returned, but before
+  // SendInitialSpells/SendInitialActionButtons build their packets from in-memory state), grants the
+  // spell in time for the button to be re-saved intact on the next logout.
+  void SynchronizeTaughtAbilitiesBeforeInitialPackets(Player *player) {
+    if (!IsAscensionCustomClass(player))
+      return;
+
+    // Mirror OnPlayerLogin's specialization-cache population. character_settings (and therefore this
+    // persisted spec) is already loaded by the time LoadFromDB returns, so the cache does not need to
+    // wait for the later OnPlayerLogin call to become valid.
+    uint32 const specializationId = player->GetPlayerSetting(ASCENSION_ACTIVE_SPEC_SETTING, 0).value;
+    if (specializationId)
+      _activeSpecializations[player->GetGUID().GetCounter()] = specializationId;
+
+    SynchronizeTaughtAbilities(player);
+  }
+
   void SendCharacterAdvancementAuthentication(Player *player) {
     WorldPacket packet(SMSG_CHARACTER_ADVANCEMENT_AUTHENTICATION,
                        sizeof(uint32) * 2);
@@ -4694,7 +4717,8 @@ public:
              PLAYERHOOK_ON_GET_AMMO_DISPLAY,
              PLAYERHOOK_ON_AFTER_UPDATE_ATTACK_POWER_AND_DAMAGE,
              PLAYERHOOK_ON_SEND_INITIAL_PACKETS_BEFORE_ADD_TO_MAP,
-             PLAYERHOOK_CHECK_ITEM_IN_SLOT_AT_LOAD_INVENTORY}) {}
+             PLAYERHOOK_CHECK_ITEM_IN_SLOT_AT_LOAD_INVENTORY,
+             PLAYERHOOK_ON_BEFORE_SEND_INITIAL_SPELLS}) {}
 
     void OnPlayerGetAmmoDisplay(Player* player, SpellInfo const* spellInfo,
         uint32& displayId, uint32& inventoryType) override
@@ -4785,6 +4809,14 @@ public:
       dest = dualWieldDest;
       err = EQUIP_ERR_OK;
       return false;
+  }
+
+  // Fires before SendInitialSpells/SendInitialActionButtons build their packets from in-memory state,
+  // so a taught ability restored here (e.g. Eternal Curse, 800157) keeps its action button across the
+  // login that would otherwise drop it. See SynchronizeTaughtAbilitiesBeforeInitialPackets.
+  void OnPlayerBeforeSendInitialSpells(Player *player) override {
+    if (ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
+      AscensionClassService::Instance().SynchronizeTaughtAbilitiesBeforeInitialPackets(player);
   }
 
   void OnPlayerLogin(Player *player) override {

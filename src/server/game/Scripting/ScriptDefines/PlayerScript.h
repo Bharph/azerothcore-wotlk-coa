@@ -226,6 +226,7 @@ enum PlayerHook
     PLAYERHOOK_ON_NORMALIZE_ACTION_BUTTON_SPELL,
     PLAYERHOOK_ON_SPELL_CHARGE_CONSUMED,
     PLAYERHOOK_ON_SPELL_COOLDOWN_CALCULATED,
+    PLAYERHOOK_ON_BEFORE_SEND_INITIAL_SPELLS,
     PLAYERHOOK_END
 };
 
@@ -246,6 +247,11 @@ public:
 
     // Called on Send Initial Packets Before Add To Map
     virtual void OnPlayerSendInitialPacketsBeforeAddToMap(Player* /*player*/, WorldPacket& /*data*/) {}
+
+    // Called at the start of Send Initial Packets Before Add To Map, before initial spells/action buttons
+    // are sent to the client. Player::LoadFromDB has already returned by this point, so persisted
+    // character settings (e.g. an active specialization) are reliably available.
+    virtual void OnPlayerBeforeSendInitialSpells(Player* /*player*/) {}
 
     // Called when a player does a desertion action (see BattlegroundDesertionType)
     virtual void OnPlayerBattlegroundDesertion(Player* /*player*/, BattlegroundDesertionType const /*desertionType*/) { }

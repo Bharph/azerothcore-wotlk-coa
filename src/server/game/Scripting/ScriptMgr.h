@@ -319,6 +319,7 @@ public: /* PlayerScript */
     void OnPlayerCalculateTalentsPoints(Player const* player, uint32& talentPointsForLevel);
     void OnPlayerReleasedGhost(Player* player);
     void OnPlayerSendInitialPacketsBeforeAddToMap(Player* player, WorldPacket& data);
+    void OnPlayerBeforeSendInitialSpells(Player* player);
     void OnPlayerBeforeUpdate(Player* player, uint32 p_time);
     void OnPlayerAfterUpdate(Player* player, uint32 diff);
     void OnPlayerUpdate(Player* player, uint32 p_time);

@@ -47,6 +47,11 @@ void ScriptMgr::OnPlayerSendInitialPacketsBeforeAddToMap(Player* player, WorldPa
     CALL_ENABLED_HOOKS(PlayerScript, PLAYERHOOK_ON_SEND_INITIAL_PACKETS_BEFORE_ADD_TO_MAP, script->OnPlayerSendInitialPacketsBeforeAddToMap(player, data));
 }
 
+void ScriptMgr::OnPlayerBeforeSendInitialSpells(Player* player)
+{
+    CALL_ENABLED_HOOKS(PlayerScript, PLAYERHOOK_ON_BEFORE_SEND_INITIAL_SPELLS, script->OnPlayerBeforeSendInitialSpells(player));
+}
+
 void ScriptMgr::OnPlayerBattlegroundDesertion(Player* player, BattlegroundDesertionType const desertionType)
 {
     CALL_ENABLED_HOOKS(PlayerScript, PLAYERHOOK_ON_BATTLEGROUND_DESERTION, script->OnPlayerBattlegroundDesertion(player, desertionType));
