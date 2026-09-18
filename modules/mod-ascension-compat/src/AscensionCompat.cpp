@@ -126,6 +126,14 @@ constexpr uint16 SMSG_VANITY_COLLECTION_ADDED = 0x06F8;
 // what comes back.
 constexpr uint16 SMSG_QUERY_CUSTOM_STORE_RESULT = 0x06BA;
 constexpr std::size_t VANITY_STORE_RECORD_DWORDS = 16;
+// Patches one CharacterAdvancement row. Not sent: the client loads its own
+// CharacterAdvancement.dbc (area-52/patch-D.MPQ) and its by-id catalogue is already
+// populated without us. Listed so the packet log names it.
+constexpr uint16 SMSG_PATCH_CHARACTER_ADVANCEMENT = 0x064A;
+// Initialises the client's Character Advancement state and carries the active
+// specialization. Unnamed in the client's opcode table, but it is a registered
+// handler, not a dead id.
+constexpr uint16 SMSG_CHARACTER_ADVANCEMENT_STATE = 0x0725;
 constexpr uint16 CMSG_MISSILE_FIRE_POSITION = 0x09C7;
 
 // The client carries a personal-bank mode on top of the guild vault window. It is
@@ -166,6 +174,8 @@ constexpr ExtensionOpcodeIdentity EXTENSION_OPCODES[] = {
     {SMSG_VANITY_COLLECTION_ADDED, "SMSG_VANITY_COLLECTION_ADDED"},
     {SMSG_QUERY_CUSTOM_STORE_RESULT, "SMSG_QUERY_CUSTOM_STORE_RESULT"},
     {0x06FD, "CMSG_QUERY_INSTANCE_BINDS"},
+    {SMSG_PATCH_CHARACTER_ADVANCEMENT, "SMSG_PATCH_CHARACTER_ADVANCEMENT"},
+    {SMSG_CHARACTER_ADVANCEMENT_STATE, "SMSG_CHARACTER_ADVANCEMENT_STATE"},
     {0x0741, "CMSG_GOSSIP_CLOSE"},
     {0x0745, "CMSG_PLAYER_POLL_LIST_REQUEST"},
     {SMSG_BANK_PERMISSIONS, "SMSG_BANK_PERMISSIONS"},
@@ -1240,6 +1250,8 @@ public:
     SynchronizeProgression(player);
     SynchronizeProficiencies(player);
     RepairStarterKit(player, false);
+    SendCharacterAdvancementState(player, specializationId);
+    SendCharacterAdvancementBridge(player, specializationId);
     // Taught abilities (e.g. Eternal Curse 800157, AscensionTaughtAbilityData.h)
     // are temporary spells and are never saved to character_spell, so
     // Player::_LoadActions - which runs inside Player::LoadFromDB, before both
@@ -1298,6 +1310,102 @@ public:
                  "Prepared {} taught abilities for {} before entering the world",
                  learned, player->GetName());
     }
+  }
+
+  /// Initialises the client's Character Advancement state and tells it which specialization
+  /// is active.
+  ///
+  /// The client's handler (Extensions.dll 0x10171D90) allocates its CA state object the first
+  /// time this arrives - without it C_CharacterAdvancement.IsPending() raises "pending build is
+  /// not available" and every specialization is painted Disabled - then reads two dwords into
+  /// that object and raises ASCENSION_CA_SPECIALIZATION_ACTIVE_ID_CHANGED when the first one
+  /// changes.
+  ///
+  /// This module used to send two zeros here under an invented opcode name, which told the
+  /// client on every single login that the character had no specialization. The saved
+  /// specialization goes in the first dword instead. The second dword's meaning is not yet
+  /// established; zero is what a character with no secondary state should carry.
+  void SendCharacterAdvancementState(Player *player, uint32 specializationId) {
+    WorldPacket packet{static_cast<uint16>(SMSG_CHARACTER_ADVANCEMENT_STATE),
+                       sizeof(uint32) * 2};
+    packet << uint32(specializationId) << uint32(0);
+    player->GetSession()->SendPacket(&packet);
+
+    LOG_INFO("module.ascension_compat",
+             "Initialized Character Advancement for {} (class {}, level {}) with "
+             "specialization {}",
+             player->GetName(), uint32(player->getClass()),
+             uint32(player->GetLevel()), specializationId);
+  }
+
+  /// Tells the client's local Character Advancement layer what this character actually owns.
+  ///
+  /// The layer in patch-B has no authoritative source for either half of this: it keeps the
+  /// active specialization in a per-character SavedVariable, and it reconstructs which talent
+  /// ranks are paid for by looking each entry's rank spells up in the spellbook. Both drift.
+  /// The saved id is cleared whenever its own validation fails transiently, which is why the
+  /// specialization chooser comes back after a logout, and a rank whose spell it cannot match
+  /// reads as unspent while the spell stays learned, which is where the phantom free points
+  /// come from.
+  ///
+  /// The server knows both, so it sends both. Same transport as the Runemaster Echoes bridge
+  /// (AscensionRunemasterEchoes.cpp): an addon-channel whisper from the character to itself,
+  /// which the client delivers to Lua as CHAT_MSG_ADDON and no one else can see.
+  ///
+  /// Ranks are still derived from the spellbook here, so this does not yet fix a rank the
+  /// server itself got wrong - it fixes the client and server disagreeing about it. A real
+  /// rank ledger is the next step and slots in behind this same message.
+  void SendCharacterAdvancementBridge(Player *player, uint32 specializationId) {
+    if (!player->GetSession())
+      return;
+
+    std::vector<std::string> ranks;
+    for (AscensionCompatData::CoATalentEntry const &entry :
+         AscensionCompatData::CoATalentEntries) {
+      if (entry.ClassId != player->getClass())
+        continue;
+
+      for (uint32 rank = entry.SpellCount; rank > 0; --rank) {
+        if (!entry.SpellIds[rank - 1] || !player->HasSpell(entry.SpellIds[rank - 1]))
+          continue;
+
+        ranks.push_back(std::to_string(entry.EntryId) + "," + std::to_string(rank));
+        break;
+      }
+    }
+
+    // One chat packet carries a bounded payload, so the rank list is chunked and the client
+    // reassembles it. The sequence is one-based and every chunk repeats the total, so a
+    // client that joins late or drops one can tell that it has an incomplete picture.
+    constexpr std::size_t maxPayload = 180;
+    std::vector<std::string> chunks;
+    std::string current;
+    for (std::string const &rank : ranks) {
+      if (!current.empty() && current.size() + rank.size() + 1 > maxPayload) {
+        chunks.push_back(current);
+        current.clear();
+      }
+      if (!current.empty())
+        current += ';';
+      current += rank;
+    }
+    if (!current.empty() || chunks.empty())
+      chunks.push_back(current);
+
+    for (std::size_t i = 0; i < chunks.size(); ++i) {
+      std::string const message = "ASC_LOCAL_CAD\t1:" + std::to_string(specializationId) + ":" +
+          std::to_string(i + 1) + ":" + std::to_string(chunks.size()) + ":" + chunks[i];
+      WorldPacket packet;
+      ChatHandler::BuildChatPacket(packet, CHAT_MSG_WHISPER, LANG_ADDON, player->GetGUID(),
+          player->GetGUID(), message, 0, player->GetName(), player->GetName(), 0, false);
+      player->GetSession()->SendPacket(&packet);
+    }
+
+    LOG_INFO("module.ascension_compat",
+             "Sent Character Advancement state to {}: specialization {}, {} paid entries in "
+             "{} message(s)",
+             player->GetName(), specializationId, uint32(ranks.size()),
+             uint32(chunks.size()));
   }
 
   uint32 GetActiveSpecialization(Player const *player) const {
