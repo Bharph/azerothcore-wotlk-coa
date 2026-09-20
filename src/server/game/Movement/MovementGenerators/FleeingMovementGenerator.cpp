@@ -37,6 +37,7 @@ void FleeingMovementGenerator<T>::DoInitialize(T* owner)
 
     owner->StopMoving();
     _path = nullptr;
+    _recalculateSpeed = false;
     owner->SetUnitFlag(UNIT_FLAG_FLEEING);
     owner->AddUnitState(UNIT_STATE_FLEEING);
     SetTargetLocation(owner);
@@ -92,8 +93,9 @@ bool FleeingMovementGenerator<T>::DoUpdate(T* owner, uint32 diff)
         _interrupt = false;
 
     _timer.Update(diff);
-    if (!_interrupt && _timer.Passed() && owner->movespline->Finalized())
+    if (!_interrupt && (_recalculateSpeed || (_timer.Passed() && owner->movespline->Finalized())))
     {
+        _recalculateSpeed = false;
         SetTargetLocation(owner);
     }
 
