@@ -20,7 +20,6 @@
 -- neutral-faction entries are used instead at the same preservation-sourced coordinates.
 
 DELETE FROM `gameobject` WHERE `guid` IN (6901511,6901512,6901513,6901514,6901515,6901516,6901517,6901518);
-
 INSERT INTO `gameobject`
     (`guid`, `id`, `map`, `zoneId`, `areaId`, `spawnMask`, `phaseMask`,
      `position_x`, `position_y`, `position_z`, `orientation`,
