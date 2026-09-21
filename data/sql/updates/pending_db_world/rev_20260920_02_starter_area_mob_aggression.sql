@@ -1,7 +1,11 @@
 -- CoA/Ascension: restore hostile faction on starter-area mobs that should aggro on sight.
 -- On the original CoA server these creatures attacked players; the AzerothCore baseline
--- ships them as faction 7 (Prey -- flees, never attacks). Changing to faction 14 (Monster)
--- restores attack-on-sight behaviour.
+-- ships them on passive factions -- most on faction 7 (Prey), and three on other factions
+-- that are equally non-aggressive (no enemy group, no enemy factions):
+--   Frostmane Troll Whelp (706) = faction 190, Grik'nir the Cold (808) = faction 2136,
+--   Bristleback Quilboar (2952) = faction 189.
+-- All 23 were verified passive against factiontemplate data. Changing to faction 14
+-- (Monster) restores attack-on-sight behaviour.
 -- Source: hertigservices/ascension-data (CoA preservation archive), issue #129
 -- Shadowglen: Webwood Spider (1986), Githyiss the Vile (1994), Mangy Nightsaber (2032)
 -- Northshire: Defias Thug (38), Garrick Padfoot (103)
