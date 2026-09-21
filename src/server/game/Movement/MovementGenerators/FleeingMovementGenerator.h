@@ -26,7 +26,7 @@ template<class T>
 class FleeingMovementGenerator : public MovementGeneratorMedium< T, FleeingMovementGenerator<T> >
 {
     public:
-        explicit FleeingMovementGenerator(ObjectGuid fleeTargetGUID) : _path(nullptr), _fleeTargetGUID(fleeTargetGUID), _timer(0), _interrupt(false), _invalidPathsCount(0), _recalculateSpeed(false) { }
+        explicit FleeingMovementGenerator(ObjectGuid fleeTargetGUID) : _path(nullptr), _fleeTargetGUID(fleeTargetGUID), _timer(0), _interrupt(false), _invalidPathsCount(0) { }
 
         MovementGeneratorType GetMovementGeneratorType() override { return FLEEING_MOTION_TYPE; }
 
@@ -38,6 +38,7 @@ class FleeingMovementGenerator : public MovementGeneratorMedium< T, FleeingMovem
 
     private:
         void SetTargetLocation(T*);
+        bool RelaunchCurrentLeg(T*);
         void GetPoint(T*, Position& position);
 
         std::unique_ptr<PathGenerator> _path;
@@ -45,7 +46,7 @@ class FleeingMovementGenerator : public MovementGeneratorMedium< T, FleeingMovem
         TimeTracker _timer;
         bool _interrupt;
         uint8 _invalidPathsCount;
-        bool _recalculateSpeed;
+        bool _recalculateSpeed{false};
 };
 
 class TimedFleeingMovementGenerator : public FleeingMovementGenerator<Creature>
