@@ -20,7 +20,7 @@
 #include "SpellMgr.h"
 #include "Strategy.h"
 #include "Trigger.h"
-#include "mod-ascension-compat/src/AscensionSpecialization.h"
+#include "AscensionSpecialization.h"
 
 #include <algorithm>
 #include <array>
