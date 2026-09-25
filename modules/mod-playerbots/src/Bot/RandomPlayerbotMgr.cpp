@@ -1260,6 +1260,8 @@ void RandomPlayerbotMgr::CheckLfgQueue()
     // Clear LFG list
     LfgDungeons[TEAM_ALLIANCE].clear();
     LfgDungeons[TEAM_HORDE].clear();
+    LfgDungeonsMaxPlayerLevel[TEAM_ALLIANCE].clear();
+    LfgDungeonsMaxPlayerLevel[TEAM_HORDE].clear();
 
     for (std::vector<Player*>::iterator i = players.begin(); i != players.end(); ++i)
     {
@@ -1281,6 +1283,22 @@ void RandomPlayerbotMgr::CheckLfgQueue()
                     continue;
 
                 LfgDungeons[player->GetTeamId()].push_back(dungeon->id);
+
+                // Record the highest real-player level queued for this dungeon so bots
+                // can avoid joining a group whose creatures would out-level them. CoA
+                // broadcasts a single creature level and only scales UP toward the top
+                // party member (CoA.LevelScalingMaxLift), so an under-level bot dropped
+                // in here would simply be one-shot.
+                uint8 queuerLevel = player->GetLevel();
+                if (group)
+                {
+                    for (GroupReference* gref = group->GetFirstMember(); gref; gref = gref->next())
+                        if (Player* member = gref->GetSource())
+                            queuerLevel = std::max<uint8>(queuerLevel, member->GetLevel());
+                }
+
+                uint8& recordedLevel = LfgDungeonsMaxPlayerLevel[player->GetTeamId()][dungeon->id];
+                recordedLevel = std::max<uint8>(recordedLevel, queuerLevel);
             }
         }
     }

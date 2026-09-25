@@ -132,6 +132,20 @@ bool LfgJoinAction::JoinLFG()
             (botLevel > dungeon->MinLevel + 10 && dungeon->TypeID == LFG_TYPE_DUNGEON))
             continue;
 
+        // CoA creatures use a single broadcast level and only scale UP toward the highest
+        // party member (CoA.LevelScalingMaxLift), with no downscaling. Never let an
+        // under-level bot queue into a dungeon a higher-level real player is already
+        // waiting on, or the bot is dropped in against creatures it cannot survive. The
+        // allowed gap is AiPlayerbot.LfgMaxLevelGap (a negative value disables the guard).
+        if (sPlayerbotAIConfig.lfgMaxLevelGap >= 0)
+        {
+            auto const& maxLevels = RandomPlayerbotMgr::instance().LfgDungeonsMaxPlayerLevel[bot->GetTeamId()];
+            auto levelItr = maxLevels.find(dungeon->ID);
+            if (levelItr != maxLevels.end() &&
+                int32(botLevel) + sPlayerbotAIConfig.lfgMaxLevelGap < int32(levelItr->second))
+                continue;
+        }
+
         selected.push_back(dungeon->ID);
         list.insert(dungeon->ID);
     }
