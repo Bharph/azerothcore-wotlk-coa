@@ -20,13 +20,13 @@ constexpr uint8 WARCHEST_LEVEL = 10;
 
 void GrantWarchest(Player* player)
 {
-    uint32 const accountId = player->GetSession()->GetAccountId();
+    uint32 const guid = player->GetGUID().GetCounter();
 
-    if (CharacterDatabase.Query("SELECT 1 FROM coa_account_warchest WHERE account = {}", accountId))
+    if (CharacterDatabase.Query("SELECT 1 FROM coa_character_warchest WHERE guid = {}", guid))
         return;
 
-    CharacterDatabase.Execute("INSERT INTO coa_account_warchest (account, claimed_at) VALUES ({}, {})",
-        accountId, uint32(GameTime::GetGameTime().count()));
+    CharacterDatabase.Execute("INSERT INTO coa_character_warchest (guid, claimed_at) VALUES ({}, {})",
+        guid, uint32(GameTime::GetGameTime().count()));
 
     Item* item = Item::CreateItem(WARCHEST_ITEM, 1);
     if (!item)
