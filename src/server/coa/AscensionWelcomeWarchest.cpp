@@ -21,21 +21,21 @@ constexpr uint32 WARCHEST_ITEM = 2977351;
 constexpr uint8 WARCHEST_LEVEL = 10;
 
 std::mutex g_claimLock;
-std::unordered_set<uint32> g_claimedAccounts;
+std::unordered_set<uint32> g_claimedCharacters;
 
-bool ClaimAccount(uint32 accountId)
+bool ClaimCharacter(uint32 guid)
 {
     std::lock_guard<std::mutex> guard(g_claimLock);
-    if (!g_claimedAccounts.insert(accountId).second)
+    if (!g_claimedCharacters.insert(guid).second)
         return false;
 
-    return !CharacterDatabase.Query("SELECT 1 FROM coa_account_warchest WHERE account = {}", accountId);
+    return !CharacterDatabase.Query("SELECT 1 FROM coa_character_warchest WHERE guid = {}", guid);
 }
 
-void ReleaseAccount(uint32 accountId)
+void ReleaseCharacter(uint32 guid)
 {
     std::lock_guard<std::mutex> guard(g_claimLock);
-    g_claimedAccounts.erase(accountId);
+    g_claimedCharacters.erase(guid);
 }
 
 void GrantWarchest(Player* player)
@@ -44,26 +44,26 @@ void GrantWarchest(Player* player)
     if (session->IsBot())
         return;
 
-    uint32 const accountId = session->GetAccountId();
+    uint32 const guid = player->GetGUID().GetCounter();
 
     if (!sObjectMgr->GetItemTemplate(WARCHEST_ITEM))
     {
-        LOG_ERROR("coa", "GrantWarchest: missing item_template entry {} for WARCHEST_ITEM, account {} not granted", WARCHEST_ITEM, accountId);
+        LOG_ERROR("coa", "GrantWarchest: missing item_template entry {} for WARCHEST_ITEM, character {} not granted", WARCHEST_ITEM, guid);
         return;
     }
 
-    if (!ClaimAccount(accountId))
+    if (!ClaimCharacter(guid))
         return;
 
     Item* item = Item::CreateItem(WARCHEST_ITEM, 1);
     if (!item)
     {
-        ReleaseAccount(accountId);
+        ReleaseCharacter(guid);
         return;
     }
 
-    CharacterDatabase.Execute("INSERT IGNORE INTO coa_account_warchest (account, claimed_at) VALUES ({}, {})",
-        accountId, uint32(GameTime::GetGameTime().count()));
+    CharacterDatabase.Execute("INSERT IGNORE INTO coa_character_warchest (guid, claimed_at) VALUES ({}, {})",
+        guid, uint32(GameTime::GetGameTime().count()));
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
     item->SaveToDB(trans);
@@ -78,7 +78,8 @@ class AscensionWelcomeWarchestPlayerScript : public PlayerScript
 {
 public:
     AscensionWelcomeWarchestPlayerScript()
-        : PlayerScript("AscensionWelcomeWarchestPlayerScript", {PLAYERHOOK_ON_LEVEL_CHANGED, PLAYERHOOK_ON_LOGIN})
+        : PlayerScript("AscensionWelcomeWarchestPlayerScript",
+                       {PLAYERHOOK_ON_LEVEL_CHANGED, PLAYERHOOK_ON_LOGIN, PLAYERHOOK_ON_DELETE_FROM_DB})
     {
     }
 
@@ -92,6 +93,12 @@ public:
     {
         if (player->GetLevel() >= WARCHEST_LEVEL)
             GrantWarchest(player);
+    }
+
+    void OnPlayerDeleteFromDB(CharacterDatabaseTransaction trans, uint32 guid) override
+    {
+        trans->Append("DELETE FROM coa_character_warchest WHERE guid = {}", guid);
+        ReleaseCharacter(guid);
     }
 };
 
