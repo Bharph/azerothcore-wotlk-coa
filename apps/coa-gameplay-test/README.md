@@ -362,7 +362,9 @@ preserves Static and must leave the talent without a depletion bonus.
 The [damage-led scaling scenario](scenarios/level-scaling-damage-engagement.json) checks that an
 out-of-range attacker scales a fresh creature before a nonlethal or lethal opening hit, and that
 later damage leaves its combat level fixed. It requires `CoA.LevelScaling=1`,
-`CoA.LevelScalingMaxLift=5` and `MonsterSight=50`. The level-1 fixtures stand 80–85 yards
+`CoA.LevelScalingMaxLift=5`, `MonsterSight=50` and `DestinyWeaver.LevelScaling=0` (or
+`DestinyWeaver.Enable=0`): while the Destiny Weaver owns creature scaling per viewer, the realm-wide lift
+stands aside, so this case and `destiny-weaver-scaling` need separate runs. The level-1 fixtures stand 80–85 yards
 away and must scale to level 6, so both declare `level_scaling`. One fixture has only one maximum HP to
 expose damage-before-scaling.
 Spell 705798 is learned as a fixture: its one damage and zero initial threat exercise damage-led
@@ -431,8 +433,8 @@ damage coefficients.
 | `who` | `actor`, optional name-filter `target`, `class_mask`, `race_mask`: submit a native Who query. |
 | `add_item` | `actor`, `item`, optional `count` (default 1): grant fixture inventory. |
 | `fill_bags` | `actor`, optional `slots` (default 0): fill the bags with distinct non-stacking armor until that many free slots remain, so a scenario can prove what a full inventory does. Fails if the bags cannot be filled. |
-| `equip` | `actor`, `item`, `slot` (0..18): equip an owned item through the session handler. |
-| `use_item` | `actor`, `item`, `spell`, optional `target` and `destination`: normal item-use handler. |
+| `equip` | `actor`, `item`, `slot` (0..18 equipment, 19..22 bag slots): equip an owned item through the session handler. |
+| `use_item` | `actor`, `item`, `spell`, optional `target`, `target_item` (an owned item entry, sent as the item target instead of a unit) and `destination`: normal item-use handler. |
 | `use_gameobject` | `actor`, `entry`: native use request for the actor's single nearby owned gameobject. |
 | `set_skill` | `actor`, `skill`, `value`, `maximum`: fixture a native profession skill. |
 | `gather_skill` | `actor`, gathering `skill`, `required`: native gathering XP and skill-up attempt. |
@@ -588,6 +590,8 @@ periodic aura effect's snapshotted crit chance; `aura_script_value` requires `ke
 the latter two) and return 1000 after the registered module damage-taken hooks. `script_heal_received` requires
 `spell` and `target` as the healer and returns 1000 after the registered heal-received hooks, with the actor as recipient.
 `set_health` also accepts a creature actor, or `pet: true` with a player actor to set its current pet's health.
+`cast` also accepts a creature actor: the creature casts `spell` on `target` (itself by default) with
+`TRIGGERED_FULL_MASK`, like `.cast back ... triggered`, and the step fails unless the cast starts.
 `open_item` takes `actor` and `item` and submits the native container-open packet, offering it to the
 packet hooks first as `WorldSession::Update` does. `close_loot` takes `actor`
 and closes its current loot window. `collect_loot` takes `actor`, collects slot zero, verifies that its full rolled
