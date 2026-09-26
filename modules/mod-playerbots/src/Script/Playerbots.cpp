@@ -5,6 +5,7 @@
  */
 
 #include "Playerbots.h"
+#include "CoaSpecialization.h"
 #include "BattleGroundTactics.h"
 #include "BattlefieldScript.h"
 #include "Channel.h"
@@ -21,6 +22,9 @@
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
 #include "cmath"
+
+// Shown to players at login: bump it with every CoA Bots release.
+static constexpr char const* COA_BOTS_VERSION = "1.4";
 
 class PlayerbotsDatabaseScript : public DatabaseScript
 {
@@ -124,6 +128,9 @@ public:
                 ChatHandler(player->GetSession()).SendSysMessage(
                     "|cff00ff00This server runs with |cff00ccffmod-playerbots|r "
                     "|cffcccccchttps://github.com/mod-playerbots/mod-playerbots|r");
+                ChatHandler(player->GetSession()).SendSysMessage(
+                    std::string("|cff00ff00CoA Bots|r |cff00ccffv") + COA_BOTS_VERSION +
+                    "|r |cffcccccchttps://github.com/Zyth45/mod-playerbots|r");
             }
 
             if (sPlayerbotAIConfig.enabled || sPlayerbotAIConfig.randomBotAutologin)
@@ -272,6 +279,8 @@ public:
 
     bool OnPlayerCanUseChat(Player* player, uint32 type, uint32 /*lang*/, std::string& msg, Channel* channel) override
     {
+        CoaLfgHeard(player, msg, channel);
+
         PlayerbotMgr* const playerbotMgr = PlayerbotsMgr::instance().GetPlayerbotMgr(player);
 
         if (playerbotMgr != nullptr && channel->GetFlags() & 0x18)
@@ -549,6 +558,9 @@ void AddSC_IcecrownBotScripts();
 void AddSC_RubySanctumBotScripts();
 void AddSC_randombot_level_mgr();
 
+void AddSC_coa_group_telemetry();
+void AddSC_coa_status_file();
+
 void AddPlayerbotsScripts()
 {
     new PlayerbotsBattlefieldScript();
@@ -569,4 +581,7 @@ void AddPlayerbotsScripts()
     AddSC_IcecrownBotScripts();
     AddSC_RubySanctumBotScripts();
     AddSC_randombot_level_mgr();
+    AddSC_coa_group_telemetry();
+    AddSC_coa_status_file();
+    AddSC_coa_lfg();
 }

@@ -36,6 +36,7 @@
 #ifndef PLAYERBOTS_COAGENERICCONTEXT_H
 #define PLAYERBOTS_COAGENERICCONTEXT_H
 
+#include "Timer.h"
 #include "GenericSpellActions.h"
 #include "CureTriggers.h"
 #include "GenericTriggers.h"
@@ -105,6 +106,25 @@ public:
         spell = qual;
     }
     std::string const getName() override { return "cast heal party::" + qualifier; }
+};
+
+/* A heal placed on the ground, cast on the tank so that it lands where the fight is.
+ *
+ * Radiance heals 96 every three seconds inside eight yards. Its rotation line had it as
+ * `cast buff::Radiance`, which a bot casts on ITSELF: the circle appeared under the healer,
+ * sixteen yards behind everyone, and healed nobody - 3415 mana for 342 points of healing
+ * (23/09). Cast on the tank, it covers the tank and the melee around it.
+ */
+class CoaGroundHealAction : public BuffOnMainTankAction, public Qualified
+{
+public:
+    CoaGroundHealAction(PlayerbotAI* botAI) : BuffOnMainTankAction(botAI, "") {}
+    void Qualify(std::string const qual) override
+    {
+        Qualified::Qualify(qual);
+        spell = qual;
+    }
+    std::string const getName() override { return "cast heal tank::" + qualifier; }
 };
 
 // Group heal. Same target value, but isUseful() additionally asks whether
@@ -325,9 +345,91 @@ public:
         std::string const getName() override { return Label "::" + qualifier; } \
     };
 
-COA_QUALIFIED_SPELL_TRIGGER(CoaCanCastTrigger, SpellCanBeCastTrigger, "can cast")
-COA_QUALIFIED_SPELL_TRIGGER(CoaBuffMissingTrigger, BuffTrigger, "buff missing")
-COA_QUALIFIED_SPELL_TRIGGER(CoaDebuffMissingTrigger, DebuffTrigger, "debuff missing")
+/* "can cast::<spell>" - the spell can be cast now. Unlike the original, not when the bot already
+ * carries the lasting aura it gives (an Ascension resistance aura was recast 23 times in one fight,
+ * 20% of base mana each), nor for a healer keeping its mana for heals. */
+class CoaCanCastTrigger : public SpellCanBeCastTrigger, public Qualified
+{
+public:
+    CoaCanCastTrigger(PlayerbotAI* botAI) : SpellCanBeCastTrigger(botAI, "") {}
+    void Qualify(std::string const qual) override
+    {
+        Qualified::Qualify(qual);
+        spell = qual;
+    }
+    std::string const getName() override { return "can cast::" + qualifier; }
+    bool IsActive() override;
+
+private:
+    // The last search for a summon of this spell still standing: a grid search, not every tick.
+    uint32 summonCheckedAt = 0;
+    bool summonStanding = false;
+};
+/* A rotation line that stays true while the bot acts on it gets nowhere: the aura never comes. It is
+ * set aside for a while, so the lines below it get their turn. A Chronomancer's "buff missing::
+ * Incarnation of Chaos" named a spell with no effect: at priority 87 it won every tick, and the bot
+ * never even took a target (test arena, 22/09). A buff that works lands well within 5 seconds. */
+struct CoaLineBackoff
+{
+    uint32 activeSince = 0;
+    uint32 asideUntil = 0;
+
+    bool Allow(bool active)
+    {
+        uint32 const now = getMSTime();
+        if (asideUntil && getMSTimeDiff(now, asideUntil) > 0 && getMSTimeDiff(now, asideUntil) < 60 * IN_MILLISECONDS)
+            return false;  // still set aside
+        asideUntil = 0;
+        if (!active)
+        {
+            activeSince = 0;
+            return false;
+        }
+        if (!activeSince)
+            activeSince = now;
+        else if (getMSTimeDiff(activeSince, now) > 5 * IN_MILLISECONDS)
+        {
+            activeSince = 0;
+            asideUntil = now + 30 * IN_MILLISECONDS;
+            return false;
+        }
+        return true;
+    }
+};
+
+/* "buff missing::<spell>" - as the original, except for a form a healer's heals cannot be cast in. */
+class CoaBuffMissingTrigger : public BuffTrigger, public Qualified
+{
+public:
+    CoaBuffMissingTrigger(PlayerbotAI* botAI) : BuffTrigger(botAI, "") {}
+    void Qualify(std::string const qual) override
+    {
+        Qualified::Qualify(qual);
+        spell = qual;
+    }
+    std::string const getName() override { return "buff missing::" + qualifier; }
+    bool IsActive() override;
+
+private:
+    CoaLineBackoff backoff;
+};
+/* "debuff missing::<spell>" - as the original, except for a healer keeping its mana for heals
+ * (a Chronomancer healer put Unmake back 12 times in one fight and ran dry for 20 s). */
+class CoaDebuffMissingTrigger : public DebuffTrigger, public Qualified
+{
+public:
+    CoaDebuffMissingTrigger(PlayerbotAI* botAI) : DebuffTrigger(botAI, "") {}
+    void Qualify(std::string const qual) override
+    {
+        Qualified::Qualify(qual);
+        spell = qual;
+    }
+    std::string const getName() override { return "debuff missing::" + qualifier; }
+    bool IsActive() override;
+
+private:
+    CoaLineBackoff backoff;
+};
 
 // ---------------------------------------------------------------------------
 // Registration
@@ -382,6 +484,7 @@ public:
         creators["cast heal party"] = &CoaGenericActionContext::cast_heal_party;
         creators["cast heal aoe"] = &CoaGenericActionContext::cast_heal_aoe;
         creators["cast buff party"] = &CoaGenericActionContext::cast_buff_party;
+        creators["cast heal tank"] = &CoaGenericActionContext::cast_heal_tank;
         creators["cast cure party"] = &CoaGenericActionContext::cast_cure_party;
         creators["cast rez"] = &CoaGenericActionContext::cast_rez;
     }
@@ -395,6 +498,7 @@ private:
     static Action* cast_heal_party(PlayerbotAI* botAI) { return new CoaHealPartyAction(botAI); }
     static Action* cast_heal_aoe(PlayerbotAI* botAI) { return new CoaAoeHealAction(botAI); }
     static Action* cast_buff_party(PlayerbotAI* botAI) { return new CoaBuffPartyAction(botAI); }
+    static Action* cast_heal_tank(PlayerbotAI* botAI) { return new CoaGroundHealAction(botAI); }
     static Action* cast_cure_party(PlayerbotAI* botAI) { return new CoaCurePartyAction(botAI); }
     static Action* cast_rez(PlayerbotAI* botAI) { return new CoaCastRezAction(botAI); }
 };

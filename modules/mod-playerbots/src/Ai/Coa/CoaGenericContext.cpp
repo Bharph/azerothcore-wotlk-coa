@@ -12,8 +12,10 @@
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "Playerbots.h"
+#include "CoaSpecialization.h"
 #include "SpellInfo.h"
 #include "SpellMgr.h"
+#include "Timer.h"
 #include <map>
 #include <cctype>
 #include <algorithm>
@@ -172,6 +174,142 @@ bool CoaResourceTrigger::IsActive()
 // Wide enough for a bot to see its summons anywhere in a fight, and narrow
 // enough that creatures at the other end of the zone do not count.
 static constexpr float SEARCH_RANGE = 60.0f;
+
+bool CoaBuffMissingTrigger::IsActive()
+{
+    bool active = BuffTrigger::IsActive();
+    if (active)
+    {
+        uint32 const id = AI_VALUE2(uint32, "spell id", spell);
+        SpellInfo const* info = id ? sSpellMgr->GetSpellInfo(id) : nullptr;
+        active = !CoaHealerAvoidsForm(bot, info) && !CoaHoldsExclusiveSibling(bot, info);
+    }
+    return backoff.Allow(active);
+}
+
+bool CoaDebuffMissingTrigger::IsActive()
+{
+    bool active = DebuffTrigger::IsActive();
+    if (active)
+    {
+        uint32 const id = AI_VALUE2(uint32, "spell id", spell);
+        active = !CoaHealerSavesManaFrom(bot, id ? sSpellMgr->GetSpellInfo(id) : nullptr);
+    }
+    return backoff.Allow(active);
+}
+
+// What this spell would heal, all its ticks counted, and the health the group is missing around
+// the bot. A heal worth far more than what is missing is a heal poured into full health.
+namespace
+{
+float CoaHealWorth(Player* bot, SpellInfo const* info, Unit* target)
+{
+    float total = 0.0f;
+    for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+    {
+        SpellEffectInfo const& effect = info->Effects[i];
+        if (effect.Effect == SPELL_EFFECT_HEAL)
+            total += float(std::max(0, effect.CalcValue(bot)));
+        else if (effect.Effect == SPELL_EFFECT_HEAL_PCT)
+            total += float(target->GetMaxHealth()) * float(std::max(0, effect.CalcValue(bot))) / 100.0f;
+        else if ((effect.Effect == SPELL_EFFECT_APPLY_AURA || effect.Effect == SPELL_EFFECT_APPLY_AREA_AURA_PARTY ||
+                  effect.Effect == SPELL_EFFECT_APPLY_AREA_AURA_RAID) &&
+                 effect.ApplyAuraName == SPELL_AURA_PERIODIC_HEAL)
+        {
+            int32 const duration = info->GetMaxDuration();
+            uint32 const ticks = effect.Amplitude > 0 && duration > 0 ? uint32(duration / effect.Amplitude) : 1;
+            total += float(std::max(0, effect.CalcValue(bot))) * float(std::max(1u, ticks));
+        }
+    }
+    return total;
+}
+
+float CoaMissingAround(Player* bot)
+{
+    float missing = float(bot->GetMaxHealth() - bot->GetHealth());
+    if (Group* group = bot->GetGroup())
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+            if (Player* member = ref->GetSource())
+                if (member != bot && member->IsAlive() && member->IsInWorld() && bot->GetDistance(member) < 30.0f)
+                    missing += float(member->GetMaxHealth() - member->GetHealth());
+    return missing;
+}
+}  // namespace
+
+bool CoaCanCastTrigger::IsActive()
+{
+    if (!SpellCanBeCastTrigger::IsActive())
+        return false;
+
+    uint32 const id = AI_VALUE2(uint32, "spell id", spell);
+    SpellInfo const* info = id ? sSpellMgr->GetSpellInfo(id) : nullptr;
+    if (!info)
+        return true;
+
+    // A rotation line asks for a heal whenever it is off cooldown, whoever needs it. When it is
+    // worth three times what the group is missing, it would land on full health: not now.
+    if (float const worth = CoaHealWorth(bot, info, bot))
+        if (worth > CoaMissingAround(bot) * 3.0f)
+            return false;
+
+    // A spell that burns or drains a power the target does not have does nothing: a Necromancer's
+    // Glacial Tap (Power Burn) was refused 51 times in a row on dungeon trash without mana (23/09).
+    for (SpellEffectInfo const& effect : info->Effects)
+        if (effect.Effect == SPELL_EFFECT_POWER_BURN || effect.Effect == SPELL_EFFECT_POWER_DRAIN)
+            if (Unit* target = AI_VALUE(Unit*, "current target"))
+                if (target->GetMaxPower(Powers(effect.MiscValue)) == 0)
+                    return false;
+
+    int32 const duration = info->GetMaxDuration();
+    if (bot->HasAura(id) && (duration < 0 || duration > 60 * IN_MILLISECONDS))
+        return false;
+
+    bool summons = false;
+    for (SpellEffectInfo const& effect : info->Effects)
+    {
+        // Travel utility has no place in a rotation: Grace of the Moon, a water walk at 40% of base
+        // mana that any damage cancels, took 79% of a Starcaller healer's mana in one fight.
+        if (effect.Effect == SPELL_EFFECT_APPLY_AURA || effect.Effect == SPELL_EFFECT_APPLY_AREA_AURA_PARTY ||
+            effect.Effect == SPELL_EFFECT_APPLY_AREA_AURA_RAID)
+            switch (effect.ApplyAuraName)
+            {
+                case SPELL_AURA_WATER_WALK: case SPELL_AURA_FEATHER_FALL: case SPELL_AURA_HOVER:
+                case SPELL_AURA_WATER_BREATHING:
+                    return false;
+                default:
+                    break;
+            }
+        if (effect.Effect == SPELL_EFFECT_SUMMON)
+            summons = true;
+    }
+
+    // A ward or effigy of which only one may stand: not again while the bot's own still stands
+    // (Healing Ward was put down 15 times in one fight, 18% of base mana each).
+    if (summons && getMSTimeDiff(summonCheckedAt, getMSTime()) < 3 * IN_MILLISECONDS && summonCheckedAt)
+    {
+        if (summonStanding)
+            return false;
+    }
+    else if (summons)
+    {
+        summonCheckedAt = getMSTime();
+        summonStanding = false;
+        std::list<Unit*> nearby;
+        Acore::AnyUnitInObjectRangeCheck check(bot, SEARCH_RANGE);
+        Acore::UnitListSearcher<Acore::AnyUnitInObjectRangeCheck> search(bot, nearby, check);
+        Cell::VisitObjects(bot, search, SEARCH_RANGE);
+        for (Unit* unit : nearby)
+            if (unit && unit->IsAlive() && !unit->IsPlayer() && unit->GetUInt32Value(UNIT_CREATED_BY_SPELL) == id &&
+                (unit->GetOwnerGUID() == bot->GetGUID() || unit->GetCreatorGUID() == bot->GetGUID()))
+            {
+                summonStanding = true;
+                return false;
+            }
+    }
+
+    return !CoaHealerSavesManaFrom(bot, info) && !CoaHealerAvoidsForm(bot, info) &&
+           !CoaHoldsExclusiveSibling(bot, info);
+}
 
 bool CoaSummonMissingTrigger::IsActive()
 {

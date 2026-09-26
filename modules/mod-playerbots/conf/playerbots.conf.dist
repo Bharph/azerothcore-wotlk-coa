@@ -85,9 +85,10 @@ AiPlayerbot.Enabled = 1
 # Enable randombot system
 AiPlayerbot.RandomBotAutologin = 1
 
-# Randombot count
-AiPlayerbot.MinRandomBots = 500
-AiPlayerbot.MaxRandomBots = 500
+# Randombot count. 200 here: what the released package installs, and what 16 GB of memory holds
+# comfortably. 1000 needs about 32 GB.
+AiPlayerbot.MinRandomBots = 200
+AiPlayerbot.MaxRandomBots = 200
 
 # Randombot accounts
 # Set to 0 to automatically calculate needed accounts based on MaxRandomBots, EnablePeriodicOnlineOffline
@@ -141,7 +142,7 @@ AiPlayerbot.AddClassCommand = 1
 
 # Bot group invitation permission level (0 = GM only, 1 = accept based on level, 2 = always accept)
 # Default: 1 (accept based on level)
-AiPlayerbot.GroupInvitationPermission = 1
+AiPlayerbot.GroupInvitationPermission = 2
 
 # Keep altbots in the party even when the master leaves
 # 0 = disabled (default behavior)
@@ -1299,7 +1300,9 @@ AiPlayerbot.ExcludedHunterPetFamilies = ""
 #   rotation happens, it stays active until those conditions end — it won't be cut off
 #   mid-fight just because its turn expired.
 #
-AiPlayerbot.BotActiveAlone = 10
+# 60 here: measured on a realm of 1000 bots, the value that keeps the world alive without
+# spending the map threads on characters nobody is looking at.
+AiPlayerbot.BotActiveAlone = 60
 AiPlayerbot.BotActiveAloneDurationSeconds = 30
 
 # Force-active rules (1 = on, 0 = off)
@@ -1406,9 +1409,12 @@ AiPlayerbot.CoaClassesOnly = 1
 # generated from its guide, applied through playerbots_custom_strategy.
 # The classifier stays active either way, so interrupts, defensive cooldowns
 # and the fallback attack are never lost.
-# Confirmed in play up to level 40; beyond that the ordering is untested.
-# Default: 0 (disabled)
-AiPlayerbot.CoaSpecRotations = 0
+# On from v1.4. It was held back while the ordering was only confirmed up to level 40; the whole of
+# the 23-24/09 measurement campaign then ran with it on, several hundred arena runs at level 60 on
+# two realms, and fourteen rotation lines were corrected against the combat logs of real players.
+# Turn it off to fall back on the classifier alone.
+# Default: 1 (enabled)
+AiPlayerbot.CoaSpecRotations = 1
 
 # Share of its mana a Conquest of Azeroth bot keeps for healing, in percent.
 # Under that share it stops paying for damage spells and fights with what costs
@@ -1423,6 +1429,180 @@ AiPlayerbot.CoaHealerManaReserve = 35
 # is not its job, it only has to be able to patch itself up.
 # Default: 15
 AiPlayerbot.CoaCasterManaReserve = 15
+
+# How a group of a player and bots fares in each fight, written to CoaBots.log when the fight
+# ends: time each member spent under 50% and under 25% health, deaths, who received the healing
+# and how much was overheal, the healers' mana from the pull to the end, and how long something
+# other than the tank was being hit. Only groups with a real player in them are followed.
+# Off in the release: it writes a block to the log at the end of every group fight, which is of no
+# use to a server owner and costs something on a realm carrying hundreds of bots. Turn it to 1 when
+# you want to measure a run, and back to 0 afterwards.
+# Default: 0 (disabled)
+AiPlayerbot.CoaGroupTelemetry = 0
+
+# A snapshot of every random bot online, written as JSON for the SquidBots dashboard (bot-status.json,
+# its "botStatusFile" setting): position, health, power, what the bot is doing, its group and its
+# quests, shown on the map and on each bot's card. The file is written whole under a .tmp name and
+# then renamed, so the dashboard never reads half of it; the dashboard treats it as stale after 60 s.
+# With 1000 bots a snapshot takes under a millisecond of the world update (about 300 KB); the disk
+# write runs on a thread of its own. "us" and "io_us" in the file give both times in microseconds.
+# A relative path is taken from the worldserver's working directory. Empty = not written.
+# Read again by ".reload config".
+# Default: "" (disabled)
+AiPlayerbot.CoaStatusFile = ""
+
+# Seconds between two snapshots of the file above (minimum 1).
+# Default: 5
+AiPlayerbot.CoaStatusIntervalSeconds = 5
+
+# Healers of Conquest of Azeroth in a group: heal whoever is under 25% health first and
+# the tank before the others at equal health, pick the heal for how urgent it is (the
+# fastest when someone is dropping, one that fits the missing health otherwise), stay
+# within 18 yards of the tank and in its line of sight, keep their mana for healing
+# instead of spending it on damage, and tell the group when they run low.
+# Read again by ".reload config", so a dungeon can be run with and without it.
+# Default: 1 (enabled)
+AiPlayerbot.CoaSmartHeal = 1
+
+# Tanks of Conquest of Azeroth: of the enemies hitting someone else, take first the one
+# on the healer, then the one on whoever is lowest, rather than the nearest one.
+# Read again by ".reload config".
+# Default: 1 (enabled)
+AiPlayerbot.CoaSmartTank = 1
+
+#    AiPlayerbot.CoaTankOpenerSeconds
+#        Description: With CoaSmartTank, a CoA damage dealer lets the tank open: on a target no tank
+#                     has touched yet it waits at most this many seconds, then goes all out. Read
+#                     again by .reload config.
+#        Default:     2
+#                     0 - no wait
+
+AiPlayerbot.CoaTankOpenerSeconds = 2
+
+#    AiPlayerbot.CoaThreatHold
+#        Description: With CoaSmartTank, a CoA damage dealer also holds its attacks on a target where
+#                     its threat reaches this percent of the tank's (aggro passes at 110% in melee,
+#                     130% at range). Off by default: holding aggro is the tank's job.
+#        Default:     0 - off
+
+AiPlayerbot.CoaThreatHold = 0
+
+# Conquest of Azeroth specializations bots never play, by id, comma separated. A bot holding one
+# switches to another of its role, and ".playerbots coa" never recruits one.
+# Empty by default: no specialization is worth setting aside as things stand. The two that used to be
+# here were measured again on 23/09 over a hundred arena runs and both earned their place back --
+# Venomancer Vizier (101) heals 122 a second, fourth of nine healers and the fewest deaths of the
+# leading group, its scarab form no longer blocking its heals; Tinker Invention (51) heals 102 a
+# second, last but one, no longer the silent healer of 21/09.
+# Set it when a specialization is broken beyond what the bot can be taught, and write the reason and
+# the date here, so that it is reconsidered rather than forgotten.
+#    99 Bloodmage Eternal: the cursed form Eternal Curse (92114) is granted by nothing in the core,
+#       so every ability of the specialization fails with SPELL_FAILED_CASTER_AURASTATE. Measured
+#       24/09 over ten arena runs at level 60: 0 taunts, 90 damage a second where the other eleven
+#       tanks do 289 to 668, and 4.2 group deaths a run, the worst of the twelve. Nothing on the bot
+#       side can repair it. Take it out again once the form is granted.
+# Read again by ".reload config".
+# Default: 99
+AiPlayerbot.CoaExcludedSpecializations = 99
+
+#    AiPlayerbot.CoaOffensiveHealerSpecs
+#        Description: Healer specializations whose damage is their healing: they keep dealing damage
+#                     whatever their mana (the healer mana reserve would take their heals away).
+#                     Read again by .reload config.
+#        Default:     40 (Cultist Heretic)
+
+AiPlayerbot.CoaOffensiveHealerSpecs = 40
+
+#
+#    AiPlayerbot.CoaHealsExcluded
+#        Description: Heals a bot must not consider, by their English name, separated by commas.
+#                     A bot builds its heal kit from every heal it knows, not from its rotation:
+#                     this is the only place that makes it forget a spell. The spell keeps all its
+#                     other effects, it merely stops counting as a heal. Read once at startup, when
+#                     each class's spell table is built, so it costs nothing in play.
+#                     Needs a restart, not .reload config.
+#        Default:     Nanobot Reconstruction (Tinker) - its own description reads "healing for 0",
+#                     and measurement agrees: 4724 mana for 76 points of useful healing.
+#                     Leave empty to set nothing aside.
+#
+
+AiPlayerbot.CoaHealsExcluded = "Nanobot Reconstruction"
+
+#
+#    AiPlayerbot.CoaLfgBots
+#        Description: Bots answer players looking for a group in chat. A player who says
+#                     "lfg bot heal", "lfg bot tank", "lfg bot dps", "lfg bot heal tank dps" or just
+#                     "lfg bot" (every role) in a listened channel is whispered by free bots of its
+#                     faction able to play those roles, with their class, specialization and level.
+#                     The player invites the ones it wants; an invited bot joins at once and
+#                     teleports next to the player (into its dungeon if need be). For realms where
+#                     /who hides the bots. Read again by .reload config, as are the settings below.
+#        Default:     1 - on
+#                     0 - off
+
+AiPlayerbot.CoaLfgBots = 1
+
+#    AiPlayerbot.CoaLfgChannels
+#        Description: Comma separated names of the chat channels listened to. A channel whose name
+#                     starts with one of them is heard: "General" covers "General - Elwynn Forest".
+#                     The client's channel numbers (/1, /2...) differ from player to player, the names
+#                     do not. Usual names: General, Trade, LocalDefense, LookingForGroup, World.
+#        Default:     General,LookingForGroup,World
+
+AiPlayerbot.CoaLfgChannels = Zone,Newcomers,World
+
+#    AiPlayerbot.CoaLfgRequireBotWord
+#        Description: Whether the request must contain the word "bot". Off, "lfg heal" said by a
+#                     player looking for other players is answered by bots too.
+#        Default:     1 - "lfg bot heal" only
+#                     0 - "lfg heal" as well
+
+AiPlayerbot.CoaLfgRequireBotWord = 1
+
+#    AiPlayerbot.CoaLfgTankOffers, AiPlayerbot.CoaLfgHealOffers, AiPlayerbot.CoaLfgDpsOffers
+#        Description: How many bots whisper an offer for each role asked for (0 to 5). Different
+#                     classes when there are some.
+#        Default:     2, 2, 3
+
+AiPlayerbot.CoaLfgTankOffers = 2
+AiPlayerbot.CoaLfgHealOffers = 2
+AiPlayerbot.CoaLfgDpsOffers = 3
+
+#    AiPlayerbot.CoaLfgLevelRange
+#        Description: A bot within this many levels of the player keeps its level and gear; one
+#                     further away is rebuilt at the player's level (gear, talents, spells) before it
+#                     whispers.
+#        Default:     2
+
+AiPlayerbot.CoaLfgLevelRange = 2
+
+#    AiPlayerbot.CoaLfgOfferMinutes
+#        Description: How long an offer holds: meanwhile the bot is offered to nobody else and
+#                     accepts that player's invitation. Afterwards it goes back to its own life.
+#        Default:     5
+
+AiPlayerbot.CoaLfgOfferMinutes = 5
+
+#    AiPlayerbot.CoaLfgCooldown
+#        Description: Seconds before the same player is answered again for the same role.
+#        Default:     30
+
+AiPlayerbot.CoaLfgCooldown = 15
+
+#    AiPlayerbot.CoaLfgAnnounceMinutes
+#        Description: Every so many minutes, a message to the whole realm on how to ask the bots.
+#        Default:     10
+#                     0 - never
+
+AiPlayerbot.CoaLfgAnnounceMinutes = 10
+
+#    AiPlayerbot.CoaLfgAnnounceText
+#        Description: That message. Empty: "[Bots] Need a healer, a tank or damage? Say lfg bot
+#                     heal, lfg bot tank, lfg bot dps or lfg bot heal tank dps in the General or
+#                     LookingForGroup channel, then invite the bots that whisper you."
+#        Default:     (empty)
+
+AiPlayerbot.CoaLfgAnnounceText =
 
 # Quality a looted item must reach to be written to the "playerbots.loot" logger:
 # 3 rare (blue), 4 epic, 5 legendary. Nothing is written unless worldserver.conf
@@ -1609,11 +1789,12 @@ AiPlayerbot.ZoneBracket.1377 = 54,63
 # Blade's Edge Mountains (Zone ID: 3522    Default Min,Max: 64,73)
 # Netherstorm            (Zone ID: 3523    Default Min,Max: 67,73)
 # Isle of Quel'Danas     (Zone ID: 4080    Default Min,Max: 68,73)
-AiPlayerbot.ZoneBracket.3483 = 58,66
+# CoA: bots stop at level 60, Outland is post-60: Hellfire and Zangarmarsh start at 61 so no bot is sent there.
+AiPlayerbot.ZoneBracket.3483 = 61,66
 AiPlayerbot.ZoneBracket.3518 = 64,70
 AiPlayerbot.ZoneBracket.3519 = 62,73
 AiPlayerbot.ZoneBracket.3520 = 66,73
-AiPlayerbot.ZoneBracket.3521 = 60,67
+AiPlayerbot.ZoneBracket.3521 = 61,67
 AiPlayerbot.ZoneBracket.3522 = 64,73
 AiPlayerbot.ZoneBracket.3523 = 67,73
 AiPlayerbot.ZoneBracket.4080 = 68,73
@@ -1828,8 +2009,8 @@ AiPlayerbot.MaxRandomBotReviveTime = 300
 
 # Minimum and maximum seconds between bot teleports to new areas or zones
 # Defaults: 3600 (min), 18000 (max)
-AiPlayerbot.MinRandomBotTeleportInterval = 3600
-AiPlayerbot.MaxRandomBotTeleportInterval = 18000
+AiPlayerbot.MinRandomBotTeleportInterval = 600
+AiPlayerbot.MaxRandomBotTeleportInterval = 2400
 
 # Number of seconds bots flagged as permanent stay in the world (31,104,000 ≈ 1 year)
 # Default: 31104000
@@ -2669,8 +2850,13 @@ AiPlayerbot.RandomBotSayWithoutMaster = 0
 # buff cast, out of mana...) and random bots answering in a whisper what a player writes in a channel.
 # At 0 they keep quiet; answers to a player's commands and questions, and a bot's hello and goodbye,
 # are always sent. RandomBotTalk (bots talking in the public channels) is a separate setting.
-# Default: 1 (enabled)
-AiPlayerbot.BotsWhisperPublic = 1
+# Default: 0 (disabled) - a word in a channel used to bring a wall of whispers.
+AiPlayerbot.BotsWhisperPublic = 0
+
+# How many of the bots that hear a player write in a channel may answer him, in percent. They all
+# hear him, so a high value buries the player under answers; a bot called by its name still answers.
+# Default: 5
+AiPlayerbot.PublicReplyChance = 5
 
 #
 #
@@ -2687,14 +2873,14 @@ AiPlayerbot.EnableBroadcasts = 1
 # Id of the per-zone channel, as the client's ChatChannels.dbc numbers it. It is 1 (General)
 # on a stock client; Conquest of Azeroth numbers its "Zone - <place>" channel 3 and keeps 1 for
 # the realm-wide one, and a bot then speaks to a channel nobody reads.
-# Default: 1
-AiPlayerbot.ZoneChannelId = 1
+# Default: 1 on a stock client, 3 here: this branch targets Conquest of Azeroth.
+AiPlayerbot.ZoneChannelId = 3
 
 # Name of the realm-wide channel bots talk in, exactly as the client shows it.
 # A realm that renames it - Conquest of Azeroth calls it "Ascension" - drops every
 # broadcast meant for that channel until this matches.
-# Default: World
-AiPlayerbot.BroadcastWorldChannelName = "World"
+# Default: World on a stock client, Ascension here: this branch targets Conquest of Azeroth.
+AiPlayerbot.BroadcastWorldChannelName = "Ascension"
 
 # All broadcast chances should be in range 0-30000
 # Value of 0 will disable this particular broadcast
@@ -2702,9 +2888,10 @@ AiPlayerbot.BroadcastWorldChannelName = "World"
 # Setting channel broadcast chance to 0 will re-route most broadcasts to other available channels
 # Setting all channel broadcasts to 0 will disable most broadcasts
 AiPlayerbot.BroadcastToGuildGlobalChance = 30000
-AiPlayerbot.BroadcastToWorldGlobalChance = 30000
+# 0 here: the realm-wide channel is read by everyone and bot chatter belongs in Zone.
+AiPlayerbot.BroadcastToWorldGlobalChance = 0
 AiPlayerbot.BroadcastToGeneralGlobalChance = 30000
-AiPlayerbot.BroadcastToTradeGlobalChance = 30000
+AiPlayerbot.BroadcastToTradeGlobalChance = 5000
 AiPlayerbot.BroadcastToLFGGlobalChance = 30000
 AiPlayerbot.BroadcastToLocalDefenseGlobalChance = 30000
 AiPlayerbot.BroadcastToWorldDefenseGlobalChance = 30000

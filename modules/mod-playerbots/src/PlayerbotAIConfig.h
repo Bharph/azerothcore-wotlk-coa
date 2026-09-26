@@ -189,6 +189,7 @@ public:
     bool enableGreet;
     bool randomBotSayWithoutMaster;
     bool botsWhisperPublic;
+    uint32 publicReplyChance;
 
     uint32 broadcastChanceMaxValue;
     std::string broadcastWorldChannelName;
@@ -398,6 +399,17 @@ public:
     bool coaSpecRotations;
     uint32 coaHealerManaReserve;
     uint32 coaCasterManaReserve;
+    bool coaGroupTelemetry;
+    bool coaSmartHeal;
+    bool coaSmartTank;
+    uint32 coaThreatHold;
+    uint32 coaTankOpenerSeconds;
+    std::string coaStatusFile;
+    uint32 coaStatusIntervalSeconds;
+    bool coaStatusEnabled;
+    std::set<uint32> coaExcludedSpecializations;
+    std::set<uint32> coaOffensiveHealerSpecs;
+    std::set<std::string> coaHealsExcluded;
     uint32 lootLogMinQuality;
     bool autoDoQuests;
     bool enableNewRpgStrategy;
