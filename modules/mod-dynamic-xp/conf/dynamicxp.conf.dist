@@ -19,6 +19,14 @@
 #                                        ".xp 1|3|5|7|dynamic|default"
 #                                        0 = game masters only
 #
+#        Dynamic.XP.Bots.InheritLeader: 1 (Default) a bot in a group gains XP at its group
+#                                       leader's chosen ".xp" rate (the leader's own choice,
+#                                       else the realm rate), so a summoned party keeps pace
+#                                       with the player who invited it. The band curve still
+#                                       uses the bot's own level. Real players are never
+#                                       affected. 0 = every bot uses the realm rate, as stock.
+#                                       Needs Dynamic.XP.Preset.PlayerChoice = 1.
+#
 #        Dynamic.XP.Rate: 1 (Enable) Default - gates the per-band curve (preset 0)
 #                         0 (Disable)
 #
@@ -37,6 +45,8 @@ Dynamic.XP.Rate.Announce = 0
 Dynamic.XP.Preset = 1
 
 Dynamic.XP.Preset.PlayerChoice = 1
+
+Dynamic.XP.Bots.InheritLeader = 1
 
 Dynamic.XP.Rate = 1
 
