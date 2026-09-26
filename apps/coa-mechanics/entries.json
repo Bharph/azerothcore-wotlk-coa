@@ -18,7 +18,7 @@
           "source": {
             "path": "src/server/coa/CoAScriptLoader.cpp",
             "anchor": "    AddSC_AscensionResourceTalents();",
-            "reviewed_sha256": "23635e3fc02e9c76b8a74c330327e3e1b8cda0d509ba5d93dcd258655db0dcfc"
+            "reviewed_sha256": "03d64fb5e89fbdb5cb5183c0e89858fa447363355f4292a3f5b98750152d6dc0"
           }
         },
         {
@@ -36,7 +36,7 @@
           "source": {
             "path": "src/server/game/Spells/Auras/SpellAuraEffects.cpp",
             "anchor": "void AuraEffect::PeriodicTick(",
-            "reviewed_sha256": "e6982c12e43d6a30399cab4d23809f9fae715566a45818b9a21262dda9157968"
+            "reviewed_sha256": "56853e39cdcd96f046cefdb32bc8fd1062d376edbfc61f8417060d15263ab9be"
           }
         },
         {
@@ -45,7 +45,7 @@
           "source": {
             "path": "src/server/game/Spells/Auras/SpellAuraEffects.cpp",
             "anchor": "void AuraEffect::HandleObsModPowerAuraTick(",
-            "reviewed_sha256": "e6982c12e43d6a30399cab4d23809f9fae715566a45818b9a21262dda9157968"
+            "reviewed_sha256": "56853e39cdcd96f046cefdb32bc8fd1062d376edbfc61f8417060d15263ab9be"
           }
         }
       ],
@@ -68,7 +68,7 @@
           "source": {
             "path": "src/server/coa/AscensionCoATalentData.cpp",
             "anchor": "bool LoadCoATalentData()",
-            "reviewed_sha256": "14cced38457cdf8539ac09fe9b7e14abbd5c2328db0620875e744e9b6395eacd"
+            "reviewed_sha256": "34cc5d84b937c776ecd46a0faae594f0a6ac18f303e3b9ed73369429b955c7d8"
           }
         },
         {
@@ -77,7 +77,7 @@
           "source": {
             "path": "src/server/coa/AscensionCompat.cpp",
             "anchor": "  bool SetTalentRank(Player* player,",
-            "reviewed_sha256": "37bacd57ff6eb2651ca7201962c78786d91342da40dcb157390e7c7c3f1368b3"
+            "reviewed_sha256": "9cd036a46c888c90a759b19f0db5b7e540ddeb3c0899c45493bcbbdb7a267726"
           }
         },
         {
@@ -86,7 +86,7 @@
           "source": {
             "path": "src/server/coa/AscensionCompat.cpp",
             "anchor": "  bool ApplyKnownEntriesUpload(Player* player,",
-            "reviewed_sha256": "37bacd57ff6eb2651ca7201962c78786d91342da40dcb157390e7c7c3f1368b3"
+            "reviewed_sha256": "9cd036a46c888c90a759b19f0db5b7e540ddeb3c0899c45493bcbbdb7a267726"
           }
         }
       ],
@@ -118,7 +118,7 @@
           "source": {
             "path": "src/server/game/Entities/Player/PlayerQuest.cpp",
             "anchor": "bool Player::CanTakeQuest(Quest const* quest, bool msg)",
-            "reviewed_sha256": "cff2168029f495ed80b82faa9b4cf31cf0b1f0685ccd4062eab426ffa4b07778"
+            "reviewed_sha256": "db3b722f0711206f39ec951b14f65da43054b67f498d2043a6b5aeac1900a9d8"
           }
         },
         {
@@ -136,7 +136,7 @@
           "source": {
             "path": "src/server/game/Entities/Player/PlayerQuest.cpp",
             "anchor": "void Player::RewardQuest(",
-            "reviewed_sha256": "cff2168029f495ed80b82faa9b4cf31cf0b1f0685ccd4062eab426ffa4b07778"
+            "reviewed_sha256": "db3b722f0711206f39ec951b14f65da43054b67f498d2043a6b5aeac1900a9d8"
           }
         }
       ],
