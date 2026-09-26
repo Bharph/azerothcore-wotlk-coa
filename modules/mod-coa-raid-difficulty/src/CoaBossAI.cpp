@@ -318,8 +318,11 @@ namespace
     public:
         coa_boss_schedule_loader() : WorldScript("coa_boss_schedule_loader") { }
 
-        void OnAfterConfigLoad(bool /*reload*/) override
+        void OnAfterConfigLoad(bool reload) override
         {
+            if (reload)
+                return;
+
             LoadSchedules();
         }
     };
