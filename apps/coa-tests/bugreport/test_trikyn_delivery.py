@@ -1,0 +1,115 @@
+import importlib.util
+from pathlib import Path
+import tempfile
+import types
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[3]
+spec = importlib.util.spec_from_file_location("trikyn_relay", ROOT / "apps/coa-bugreport/trikyn_relay.py")
+trikyn = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(trikyn)
+ID = "1-" + "a" * 32
+
+
+def gh_result(returncode=0, stdout="", stderr=""):
+    return types.SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
+
+class ClassifyTests(unittest.TestCase):
+    def test_no_tag_is_bug(self):
+        self.assertEqual(trikyn.classify("Pet will not follow"), ("bug", "Pet will not follow"))
+
+    def test_bug_tag_stripped(self):
+        self.assertEqual(trikyn.classify("[BUG] Pet will not follow"), ("bug", "Pet will not follow"))
+
+    def test_feedback_tag_detected(self):
+        self.assertEqual(trikyn.classify("[Feedback] Love the realm"), ("feedback", "Love the realm"))
+
+
+class DeliveryTests(unittest.TestCase):
+    def setUp(self):
+        self.service = trikyn.TrikynDelivery("token", tracker="Bharph/trikyn-live-ops")
+
+    def test_bug_creates_issue_with_labels_and_posts_card(self):
+        created = "https://github.com/Bharph/trikyn-live-ops/issues/37\n"
+        with patch.object(trikyn.subprocess, "run", return_value=gh_result(stdout=created)) as run, \
+                patch.object(trikyn.urllib.request, "urlopen") as urlopen:
+            number = self.service.create("Pet will not follow", "It just stands there\n")
+        self.assertEqual(number, 37)
+        command = run.call_args[0][0]
+        self.assertEqual(command[:5], ["gh", "issue", "create", "--repo", "Bharph/trikyn-live-ops"])
+        self.assertIn("type:bug", command)
+        self.assertIn("area:unknown", command)
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_feedback_is_rejected_in_phase_one(self):
+        with patch.object(trikyn.subprocess, "run") as run:
+            with self.assertRaises(trikyn.DeliveryError) as caught:
+                self.service.create("[FEEDBACK] Nice work", "keep it up")
+        self.assertEqual(caught.exception.kind, "invalid")
+        run.assert_not_called()
+
+    def test_auth_failure_is_blocked(self):
+        with patch.object(trikyn.subprocess, "run",
+                          return_value=gh_result(returncode=1, stderr="HTTP 403: Forbidden")):
+            with self.assertRaises(trikyn.DeliveryError) as caught:
+                self.service.create("Title here", "body")
+        self.assertEqual(caught.exception.kind, "blocked")
+
+    def test_rate_limit_is_limited(self):
+        with patch.object(trikyn.subprocess, "run",
+                          return_value=gh_result(returncode=1, stderr="API rate limit exceeded")):
+            with self.assertRaises(trikyn.DeliveryError) as caught:
+                self.service.create("Title here", "body")
+        self.assertEqual(caught.exception.kind, "limited")
+
+    def test_unparseable_success_is_uncertain(self):
+        with patch.object(trikyn.subprocess, "run", return_value=gh_result(stdout="no url here")):
+            with self.assertRaises(trikyn.DeliveryError) as caught:
+                self.service.create("Title here", "body")
+        self.assertEqual(caught.exception.kind, "uncertain")
+
+    def test_missing_gh_binary_is_uncertain(self):
+        with patch.object(trikyn.subprocess, "run", side_effect=OSError("no gh")):
+            with self.assertRaises(trikyn.DeliveryError) as caught:
+                self.service.create("Title here", "body")
+        self.assertEqual(caught.exception.kind, "uncertain")
+
+    def test_card_failure_does_not_fail_delivery(self):
+        created = "https://github.com/Bharph/trikyn-live-ops/issues/41\n"
+        with patch.object(trikyn.subprocess, "run", return_value=gh_result(stdout=created)), \
+                patch.object(trikyn.urllib.request, "urlopen", side_effect=OSError("discord down")):
+            number = self.service.create("Title here", "body")
+        self.assertEqual(number, 41)
+
+
+class JournalIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="trikyn-relay-test-")
+        self.root = Path(self.temporary.name)
+        self.path = self.root / (ID + ".report")
+        self.path.write_bytes(b"COABUG1\nAbility fails\nExpected: damage\nActual: nothing\n")
+        self.now = 10000
+        self.service = trikyn.TrikynDelivery("token")
+        self.worker = trikyn.Relay(self.root, self.service, lambda: self.now)
+
+    def tearDown(self):
+        self.worker.close()
+        self.temporary.cleanup()
+
+    def status(self):
+        return self.path.with_suffix(".status").read_text().strip()
+
+    def test_report_flows_to_created_and_does_not_repost(self):
+        created = "https://github.com/Bharph/trikyn-live-ops/issues/37\n"
+        with patch.object(trikyn.subprocess, "run", return_value=gh_result(stdout=created)) as run, \
+                patch.object(trikyn.urllib.request, "urlopen"):
+            self.assertEqual(self.worker.process(self.path), "created")
+            self.assertEqual(self.status(), "created|37")
+            self.worker.process(self.path)
+        self.assertEqual(run.call_count, 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
