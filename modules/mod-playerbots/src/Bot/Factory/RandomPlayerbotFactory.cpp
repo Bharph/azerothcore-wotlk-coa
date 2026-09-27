@@ -121,14 +121,14 @@ Player* RandomPlayerbotFactory::CreateRandomBot(WorldSession* session, uint8 cls
     }
 
     // "Kegarink Bot" with AiPlayerbot.CoaBotSurname: the first name alone was checked free, the
-    // whole name may not be (a bot renamed at an earlier start holds it).
+    // whole name may not be (a bot renamed at an earlier start holds it). Keep the already-free
+    // base name when the surnamed form is taken instead of failing the creation.
     if (std::string const surnamed = CoaBotName(name); surnamed != name)
     {
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHECK_NAME);
         stmt->SetData(0, surnamed);
-        if (CharacterDatabase.Query(stmt))
-            return nullptr;
-        name = surnamed;
+        if (!CharacterDatabase.Query(stmt))
+            name = surnamed;
     }
 
     std::vector<uint8> skinColors, facialHairTypes;

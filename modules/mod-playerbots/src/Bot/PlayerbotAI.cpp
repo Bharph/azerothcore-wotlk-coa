@@ -1209,6 +1209,8 @@ void PlayerbotAI::TakeSharedQuest(WorldPacket const& packet)
     ObjectGuid const dividerGuid = bot->GetDivider();
     if (dividerGuid.IsEmpty())
         return;
+    // Consume the share up front so any early return below still frees the bot for later shares.
+    bot->SetDivider(ObjectGuid::Empty);
     Player* sharer = ObjectAccessor::FindPlayer(dividerGuid);
     if (!sharer || GET_PLAYERBOT_AI(sharer) || !bot->GetGroup() || bot->GetGroup() != sharer->GetGroup() ||
         bot->GetMap() != sharer->GetMap())
@@ -1223,7 +1225,6 @@ void PlayerbotAI::TakeSharedQuest(WorldPacket const& packet)
     if (!quest)
         return;
 
-    bot->SetDivider(ObjectGuid::Empty);
     if (bot->HasQuest(questId) || !bot->CanTakeQuest(quest, false) || !bot->CanAddQuest(quest, false))
         return;
 
