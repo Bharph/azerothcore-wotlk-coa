@@ -138,3 +138,7 @@ __pycache__/
 !/modules/mod-coa-titan-scrolls/
 !/modules/mod-ah-bot/
 !/modules/mod-playerbots/
+!/modules/mod-path-to-ascension/
+!/modules/mod-war-games/
+!/modules/mod-hero-call-board/
+!/modules/mod-item-recovery/
