@@ -142,3 +142,5 @@ __pycache__/
 !/modules/mod-war-games/
 !/modules/mod-hero-call-board/
 !/modules/mod-item-recovery/
+!/modules/mod-battlehorn/
+!/modules/mod-scrolls-of-retreat/
