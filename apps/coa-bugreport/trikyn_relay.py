@@ -12,11 +12,14 @@ import json
 import os
 from pathlib import Path
 import re
+import struct
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
+import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from relay import DeliveryError, Relay, read_report, worker_lock  # noqa: E402
@@ -30,6 +33,22 @@ USER_AGENT = "DiscordBot (https://trikyn.online, 1.0)"
 TYPE_TAG = re.compile(r"^\s*\[(bug|feedback)\]\s*", re.IGNORECASE)
 ISSUE_URL = re.compile(r"/issues/(\d+)")
 BUG_COLOR = 0xD73A4A
+SPACER_NAME = "spacer.png"
+
+
+def _png_chunk(tag: bytes, data: bytes) -> bytes:
+    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+
+def build_spacer_png(width: int = 1024, height: int = 1) -> bytes:
+    signature = b"\x89PNG\r\n\x1a\n"
+    header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    scanlines = (b"\x00" + b"\x00" * (width * 4)) * height
+    return (signature + _png_chunk(b"IHDR", header)
+            + _png_chunk(b"IDAT", zlib.compress(scanlines, 9)) + _png_chunk(b"IEND", b""))
+
+
+SPACER_PNG = build_spacer_png()
 
 
 def classify(title: str):
@@ -99,17 +118,31 @@ class TrikynDelivery:
             "description": description or "(no details provided)",
             "color": BUG_COLOR,
             "footer": {"text": f"in-game submission · issue #{number}"},
+            "image": {"url": f"attachment://{SPACER_NAME}"},
         }
-        payload = json.dumps({"embeds": [embed]}).encode("utf-8")
+        payload = {"embeds": [embed], "attachments": [{"id": 0, "filename": SPACER_NAME}]}
+        boundary = "----trikyn" + uuid.uuid4().hex
         request = urllib.request.Request(f"{DISCORD_API}/channels/{channel}/messages",
-                                         data=payload, method="POST")
+                                         data=self._multipart(boundary, payload, SPACER_PNG), method="POST")
         request.add_header("Authorization", f"Bot {self.token}")
-        request.add_header("Content-Type", "application/json")
+        request.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
         request.add_header("User-Agent", USER_AGENT)
         try:
             urllib.request.urlopen(request, timeout=20)
         except (urllib.error.URLError, OSError):
             print(f"warning: Discord card post failed for issue #{number}", flush=True)
+
+    @staticmethod
+    def _multipart(boundary: str, payload: dict, png: bytes) -> bytes:
+        line = b"--" + boundary.encode()
+        parts = [
+            line, b'Content-Disposition: form-data; name="payload_json"', b"Content-Type: application/json", b"",
+            json.dumps(payload).encode("utf-8"),
+            line, f'Content-Disposition: form-data; name="files[0]"; filename="{SPACER_NAME}"'.encode(),
+            b"Content-Type: image/png", b"", png,
+            b"--" + boundary.encode() + b"--", b"",
+        ]
+        return b"\r\n".join(parts)
 
 
 def main():

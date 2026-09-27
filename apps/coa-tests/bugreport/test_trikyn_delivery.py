@@ -27,6 +27,14 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(trikyn.classify("[Feedback] Love the realm"), ("feedback", "Love the realm"))
 
 
+class SpacerTests(unittest.TestCase):
+    def test_spacer_is_a_valid_wide_png(self):
+        png = trikyn.build_spacer_png(1024, 1)
+        self.assertTrue(png.startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertEqual(png[16:24], (1024).to_bytes(4, "big") + (1).to_bytes(4, "big"))
+        self.assertTrue(png.rstrip().endswith(b"IEND") or png[-8:-4] == b"IEND")
+
+
 class DeliveryTests(unittest.TestCase):
     def setUp(self):
         self.service = trikyn.TrikynDelivery("token", tracker="Bharph/trikyn-live-ops")
