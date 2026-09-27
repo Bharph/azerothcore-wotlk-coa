@@ -29,6 +29,7 @@
 #include "LootObjectStack.h"
 #include "MapMgr.h"
 #include "MotionMaster.h"
+#include "MoveSpline.h"
 #include "MoveSplineInit.h"
 #include "NewRpgStrategy.h"
 #include "ObjectGuid.h"
@@ -477,6 +478,73 @@ void PlayerbotAI::UpdateAIGroupMaster()
     }
 }
 
+// A bot sends no landing packet: a fall flag set by a dismount, a jump or a knockback stayed on it,
+// and the dungeon finder refused to teleport it into the dungeon ("could NOT be teleported ... Error:
+// 2", LFG_TELEPORTERROR_FALLING), leaving the player's own bots outside (jealous-sound #4299, #4818,
+// #5372). Standing on the ground and on no falling path, it has landed.
+void PlayerbotAI::ClearStaleFall()
+{
+    // Three marks of a fall, all cleared by the landing packet a bot never sends: the movement flags, the
+    // jumping state, and the height the fall started at - a player is "falling" while below it, so a bot
+    // that once walked down a slope stayed falling for good (Player::IsFalling).
+    bool const falling = bot->HasUnitMovementFlag(MOVEMENTFLAG_FALLING | MOVEMENTFLAG_FALLING_FAR);
+    bool const jumping = bot->HasUnitState(UNIT_STATE_JUMPING);
+    if ((!falling && !jumping && !bot->IsFalling()) || bot->IsFlying() || bot->IsInFlight() || bot->IsInWater())
+        return;
+    if (bot->movespline->Initialized() && !bot->movespline->Finalized())
+        return;
+
+    float const ground = bot->GetMapHeight(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
+    if (ground <= INVALID_HEIGHT || bot->GetPositionZ() - ground > 2.0f)
+        return;
+
+    if (falling)
+        bot->RemoveUnitMovementFlag(MOVEMENTFLAG_FALLING | MOVEMENTFLAG_FALLING_FAR);
+    if (jumping)
+        bot->ClearUnitState(UNIT_STATE_JUMPING);
+    bot->SetFallInformation(0, bot->GetPositionZ());
+}
+
+// A bot of a dungeon finder group left outside its dungeon while the run goes on: dead or a ghost when
+// the group was teleported ("Error: 1", the tank of a solo queue stayed at the graveyard), falling
+// ("Error: 2"), or released at a graveyard after a death inside. It is brought back to life and sent
+// into the dungeon the way the dungeon finder does it, as a player would walk back in.
+void PlayerbotAI::RejoinLfgDungeon()
+{
+    Group* group = bot->GetGroup();
+    if (!group || !group->isLFGGroup() || bot->IsBeingTeleported())
+        return;
+
+    time_t const now = time(nullptr);
+    if (now - lfgRejoinAt < 5)
+        return;
+
+    uint32 const mapId = sLFGMgr->GetDungeonMapId(group->GetGUID());
+    if (!mapId || bot->GetMapId() == mapId || sLFGMgr->GetState(group->GetGUID()) != lfg::LFG_STATE_DUNGEON)
+        return;
+
+    lfgRejoinAt = now;
+    if (!bot->IsAlive())
+    {
+        bot->ResurrectPlayer(1.0f);
+        bot->SpawnCorpseBones();
+    }
+    if (!bot->IsAlive())
+        return;
+
+    // Whatever it was doing on its own stops first: a dungeon finder bot kept roaming the world, the
+    // core counts a slope it walks down as a fall, and the teleport was refused every time (Error 2).
+    if (bot->IsFalling() || bot->HasUnitState(UNIT_STATE_JUMPING))
+    {
+        bot->StopMoving();
+        bot->GetMotionMaster()->Clear();
+        bot->RemoveUnitMovementFlag(MOVEMENTFLAG_FALLING | MOVEMENTFLAG_FALLING_FAR);
+        bot->ClearUnitState(UNIT_STATE_JUMPING);
+        bot->SetFallInformation(0, bot->GetPositionZ());
+    }
+    sLFGMgr->TeleportPlayer(bot, false);
+}
+
 void PlayerbotAI::UpdateAIInternal([[maybe_unused]] uint32 elapsed, bool minimal)
 {
 
@@ -488,6 +556,9 @@ void PlayerbotAI::UpdateAIInternal([[maybe_unused]] uint32 elapsed, bool minimal
 
     if (!bot->GetMap())
         return; // instances are created and destroyed on demand
+
+    ClearStaleFall();
+    RejoinLfgDungeon();
 
     // kinda expensive call to make on every single updateAI, do we really need this information?
     std::string const mapString = WorldPosition(bot).isOverworld() ? std::to_string(bot->GetMapId()) : "I";
@@ -696,7 +767,10 @@ void PlayerbotAI::HandleCommand(uint32 type, std::string const& text, Player& fr
     {
         Event event("do", "", &fromPlayer);
         std::string action = filtered.substr(filtered.find(" ") + 1);
-        DoSpecificAction(action, event);
+        // A sentence in party chat that happens to begin with "do" is not a failed order: without
+        // this, "do you remember the fight?" answers every player with one "unknown action" per bot.
+        // A whisper still reports it, because there the word can only have been meant as one.
+        DoSpecificAction(action, event, type != CHAT_MSG_WHISPER);
     }
 
     if (ChatHelper::parseValue("command", filtered).substr(0, 3) == "do ")
@@ -1037,7 +1111,8 @@ void PlayerbotAI::HandleCommand(uint32 type, std::string const text, Player* fro
         (filtered.size() > 3 && filtered.substr(0, 3) == "do "))
     {
         std::string const action = filtered.substr(filtered.find(" ") + 1);
-        DoSpecificAction(action);
+        // Same rule as the other HandleCommand: party chat goes through this one.
+        DoSpecificAction(action, Event(), type != CHAT_MSG_WHISPER);
     }
     else if (type != CHAT_MSG_WHISPER && filtered.size() > 6 && filtered.substr(0, 6) == "queue ")
     {
@@ -1125,6 +1200,37 @@ void PlayerbotAI::HandleCommand(uint32 type, std::string const text, Player* fro
     }
 }
 
+// A quest a player of the group shares: the core offers it to the bot by sending it the quest's details,
+// with the player as "divider". The bot takes it there. The share packet itself reaches the bots empty
+// (the core reads it into its own structure first), so the "quest share" trigger never had a quest to
+// take: the bots neither accepted nor declined, and a second share found them "busy" (#5074).
+void PlayerbotAI::TakeSharedQuest(WorldPacket const& packet)
+{
+    ObjectGuid const dividerGuid = bot->GetDivider();
+    if (dividerGuid.IsEmpty())
+        return;
+    Player* sharer = ObjectAccessor::FindPlayer(dividerGuid);
+    if (!sharer || GET_PLAYERBOT_AI(sharer) || !bot->GetGroup() || bot->GetGroup() != sharer->GetGroup() ||
+        bot->GetMap() != sharer->GetMap())
+        return;
+
+    WorldPacket details(packet);
+    details.rpos(0);
+    uint64 giver = 0, divider = 0;
+    uint32 questId = 0;
+    details >> giver >> divider >> questId;
+    Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
+    if (!quest)
+        return;
+
+    bot->SetDivider(ObjectGuid::Empty);
+    if (bot->HasQuest(questId) || !bot->CanTakeQuest(quest, false) || !bot->CanAddQuest(quest, false))
+        return;
+
+    sharer->SendPushToPartyResponse(bot, QUEST_PARTY_MSG_ACCEPT_QUEST);
+    bot->AddQuestAndCheckCompletion(quest, sharer);
+}
+
 void PlayerbotAI::HandleBotOutgoingPacket(WorldPacket const& packet)
 {
     if (packet.empty())
@@ -1132,6 +1238,9 @@ void PlayerbotAI::HandleBotOutgoingPacket(WorldPacket const& packet)
 
     if (!bot || !bot->IsInWorld() || bot->IsDuringRemoveFromWorld())
         return;
+
+    if (packet.GetOpcode() == SMSG_QUESTGIVER_QUEST_DETAILS)
+        TakeSharedQuest(packet);
 
     // An invitation is answered on the bot's next AI update, and a bot eating or drinking after a
     // fight puts that update off for as long as 18 seconds: the player who invited it waited that
@@ -1440,6 +1549,29 @@ int32 PlayerbotAI::CalculateGlobalCooldown(uint32 spellid)
 
 void PlayerbotAI::HandleMasterIncomingPacket(WorldPacket const& packet)
 {
+    // Talking to a quest giver is the master asking as surely as a typed order is: what the bot
+    // reports back belongs to that click. Without this the quest lines - which quests it can take,
+    // which it just handed in - are dropped as unasked-for chatter wherever BotsWhisperPublic is
+    // off. Spells and movement are left out on purpose; those are the chatter that setting exists
+    // to stop.
+    switch (packet.GetOpcode())
+    {
+        case CMSG_QUESTGIVER_HELLO:
+        case CMSG_GOSSIP_HELLO:
+        case CMSG_GAMEOBJ_USE:
+        case CMSG_QUESTGIVER_QUERY_QUEST:
+        case CMSG_QUESTGIVER_ACCEPT_QUEST:
+        case CMSG_QUESTGIVER_COMPLETE_QUEST:
+        case CMSG_QUEST_CONFIRM_ACCEPT:
+        case CMSG_PUSHQUESTTOPARTY:
+            if (Player* master = GetMaster())
+                if (!GET_PLAYERBOT_AI(master))
+                    lastCommandAt = time(nullptr);
+            break;
+        default:
+            break;
+    }
+
     masterIncomingPacketHandlers.AddPacket(packet);
 }
 

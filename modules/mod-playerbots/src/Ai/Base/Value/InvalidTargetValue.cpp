@@ -20,8 +20,10 @@ bool InvalidTargetValue::Calculate()
     {
         return target->GetMapId() != bot->GetMapId() || target->HasUnitFlag(UNIT_FLAG_NOT_SELECTABLE) ||
                target->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE) || target->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE_2) ||
+               // A feared creature is hit like any other: the bots dropped it as their target and let
+               // it run, and CoA puts fear on many rotations (reported in game, 27/09).
                !target->IsVisible() || !target->IsAlive() || target->IsPolymorphed() || target->IsCharmed() ||
-               target->HasFearAura() || target->HasUnitState(UNIT_STATE_ISOLATED) || target->IsFriendlyTo(bot) ||
+               target->HasUnitState(UNIT_STATE_ISOLATED) || target->IsFriendlyTo(bot) ||
                !AttackersValue::IsValidTarget(target, bot);
     }
 

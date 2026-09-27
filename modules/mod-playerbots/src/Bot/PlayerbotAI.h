@@ -391,6 +391,9 @@ public:
     virtual ~PlayerbotAI();
 
     void UpdateAI(uint32 elapsed, bool minimal = false) override;
+    void ClearStaleFall();
+    void TakeSharedQuest(WorldPacket const& packet);
+    void RejoinLfgDungeon();
     void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
 
     std::string const HandleRemoteCommand(std::string const command);
@@ -618,6 +621,7 @@ public:
     void AddTimedEvent(std::function<void()> callback, uint32 delayMs);
 
 private:
+    time_t lfgRejoinAt = 0;
     static void _fillGearScoreData(Player* player, Item* item, std::vector<uint32>* gearScore, uint32& twoHandScore,
                                    bool mixed = false);
     bool IsTellAllowed(PlayerbotSecurityLevel securityLevel = PLAYERBOT_SECURITY_ALLOW_ALL);
@@ -652,8 +656,9 @@ protected:
     PlayerbotSecurity security;
     std::map<std::string, time_t> whispers;
     std::pair<ChatMsg, time_t> currentChat;
-    // When the bot last got a command from a real player, and whether a greeting is being sent: what
-    // MasterWantsThis lets through to a master who turned bot whispers off.
+    // When a real player last asked this bot for something - a typed order, or a click on a quest
+    // giver it reacts to - and whether a greeting is being sent: what MasterWantsThis lets through
+    // to a master who turned bot whispers off.
     time_t lastCommandAt = 0;
     bool greeting = false;
     bool MasterWantsThis();

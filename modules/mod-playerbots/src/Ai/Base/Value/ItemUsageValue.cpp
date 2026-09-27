@@ -286,6 +286,15 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, 
         }
     }
 
+    // An off-hand item is no upgrade while a two-handed weapon holds both hands: the empty off-hand
+    // slot made it look like one (a Felsworn with a staff rolled for an Aboriginal Rod, jealous-sound #5081).
+    if (dstSlot == EQUIPMENT_SLOT_OFFHAND && !bot->CanTitanGrip())
+    {
+        Item* mainHand = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND);
+        if (mainHand && mainHand->GetTemplate()->InventoryType == INVTYPE_2HWEAPON)
+            return ITEM_USAGE_NONE;
+    }
+
     for (uint8 i = 0; i < possibleSlots; i++)
     {
         bool shouldEquipInSlot = shouldEquip;
@@ -884,7 +893,8 @@ std::string const ItemUsageValue::GetConsumableType(ItemTemplate const* proto, b
             if (spellInfo)
                 for (int i = 0; i < 3; i++)
                 {
-                    if (spellInfo->Effects[i].Effect == SPELL_EFFECT_ENERGIZE && hasMana)
+                    if (spellInfo->Effects[i].Effect == SPELL_EFFECT_ENERGIZE && hasMana &&
+                        spellInfo->Effects[i].MiscValue == POWER_MANA)
                         return "mana potion";
 
                     if (spellInfo->Effects[i].Effect == SPELL_EFFECT_HEAL)

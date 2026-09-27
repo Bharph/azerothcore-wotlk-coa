@@ -349,3 +349,99 @@ UPDATE `playerbots_custom_strategy`
    SET `action_line` = 'can cast::Piercing Augmentation>cast::Piercing Augmentation!82'
  WHERE `name` = 'tinker-mechanics'
    AND `action_line` = 'can cast::Piercing Augmentation>cast::Piercing Augmentation!8';
+
+-- 14. Moon Gaze (Bloodmage) n'est pas un buff : il fait passer le personnage en Cursed Form pendant
+--     5 minutes, « unable to move, attack, or cast spells or abilities » hors de la barre de la
+--     forme, que les bots ne savent pas utiliser. Les trois rotations le relancaient des que
+--     l'aura manquait : le bot restait assis cinq minutes, soigneur compris (jealous-sound #4836,
+--     #5143, #5196).
+--       avant : bloodmage-eternal     'buff missing::Moon Gaze>cast buff::Moon Gaze!11'
+--               bloodmage-fleshweaver 'buff missing::Moon Gaze>cast buff::Moon Gaze!8'
+--               bloodmage-sanguine    'buff missing::Moon Gaze>cast buff::Moon Gaze!8'
+DELETE FROM `playerbots_custom_strategy`
+ WHERE `name` LIKE 'bloodmage-%' AND `action_line` LIKE '%::Moon Gaze!%';
+
+-- 15. Les postures de tank, celles qui augmentent la menace (Agonizing Presence, Twilight Domain,
+--     Demonic Power, Heart of the Mountain, Lunar Authority, Sol Invictus, Divine Stand, Night's
+--     Watch, Tower Formation), etaient dans les rotations des specs dps et soigneur : un Witch Hunter
+--     dps en Night's Watch prenait les monstres au tank (jealous-sound #5320, #4462). Chez les tanks,
+--     elles etaient en priorite 5 a 14 et presque jamais lancees (#5063, #5173). Elles quittent les
+--     specs dps et soigneur, et passent en priorite 95 chez les tanks, comme Beetle Form et Tower
+--     Formation. Hors combat, la strategie "coa buff" les met aussi : un tank prend la sienne, les
+--     autres jamais.
+--       avant, chez les tanks : cultist-dreadnought Twilight Domain !5, felsworn-tyrant Agonizing
+--       Presence !10, knight-of-xoroth-defiance Demonic Power !5, primalist-mountain-king Heart of
+--       the Mountain !13, starcaller-moon-guard Lunar Authority !14, sun-cleric-seraphim Sol
+--       Invictus !5, templar-oathkeeper Divine Stand !11, witch-hunter-black-knight Night's Watch !6
+DELETE FROM `playerbots_custom_strategy`
+ WHERE `name` NOT IN ('cultist-dreadnought', 'felsworn-tyrant', 'knight-of-xoroth-defiance', 'primalist-mountain-king',
+                      'starcaller-moon-guard', 'sun-cleric-seraphim', 'templar-oathkeeper', 'witch-hunter-black-knight',
+                      'guardian-vanguard', 'venomancer-fortitude')
+   AND `action_line` REGEXP '^buff missing::(Agonizing Presence|Twilight Domain|Demonic Power|Heart of the Mountain|Lunar Authority|Sol Invictus|Divine Stand|Night''s Watch|Tower Formation)>';
+UPDATE `playerbots_custom_strategy`
+   SET `action_line` = CONCAT(SUBSTRING_INDEX(`action_line`, '!', 1), '!95')
+ WHERE `name` IN ('cultist-dreadnought', 'felsworn-tyrant', 'knight-of-xoroth-defiance', 'primalist-mountain-king',
+                  'starcaller-moon-guard', 'sun-cleric-seraphim', 'templar-oathkeeper', 'witch-hunter-black-knight')
+   AND `action_line` REGEXP '^buff missing::(Agonizing Presence|Twilight Domain|Demonic Power|Heart of the Mountain|Lunar Authority|Sol Invictus|Divine Stand|Night''s Watch)>';
+
+-- 16. Parachute Pack (Tinker) equipe le groupe de parachutes : de l'utilitaire de voyage, pas un sort
+--     de combat. Les trois rotations le lancaient, et les joueurs voyaient les bots en parachute
+--     (Discord, 27/09).
+--       avant : tinker-demolition 'can cast::Parachute Pack>cast::Parachute Pack!6'
+--               tinker-invention  'can cast::Parachute Pack>cast::Parachute Pack!10'
+--               tinker-mechanics  'can cast::Parachute Pack>cast::Parachute Pack!6'
+DELETE FROM `playerbots_custom_strategy`
+ WHERE `name` LIKE 'tinker-%' AND `action_line` LIKE '%::Parachute Pack!%';
+
+-- 17. Falconstrike (Ranger Farstrider) n'est pas un sort a lancer : chez le joueur, un Quick Shot sur
+--     cinq (ou le suivant d'un Horn) se change en Falconstrike, qui appelle un War Falcon. Le bot connait
+--     le sort et la rotation le lancait des qu'il le pouvait, sans temps de recharge : un faucon a
+--     chaque lancer, une nuee autour du bot (vu en jeu le 27/09). Quick Shot reste et fait le reste.
+--       avant : ranger-farstrider 'can cast::Falconstrike>cast::Falconstrike!82'
+DELETE FROM `playerbots_custom_strategy`
+ WHERE `name` LIKE 'ranger-%' AND `action_line` LIKE '%::Falconstrike!%';
+
+-- 18. Starcaller Moon Priest soigne en frappant (25/09/2026). Chez le joueur (7 joueurs, 8 389 lancers),
+--     Lunar Eclipse, Lunar Lance et Moonflow declenchent Aspect of the Goddess et Moonwater sur les
+--     allies : la moitie de ses soins. Nos bots gardaient Lunar Eclipse pour l'urgence et Lunar Lance en
+--     priorite 1, et ne soignaient presque pas. La rotation entiere est celle mesuree sur l'arene de test
+--     (avec CoaOffensiveHealerSpecs = 40,43 et le tir sans baguette). Rejouable : effacee puis reecrite.
+DELETE FROM `playerbots_custom_strategy` WHERE `name` = 'starcaller-moon-priest';
+INSERT INTO `playerbots_custom_strategy` (`owner`, `name`, `idx`, `action_line`) VALUES
+    (0, 'starcaller-moon-priest', 1, 'party member critical health>cast heal party::Moonwell Splash!92'),
+    (0, 'starcaller-moon-priest', 2, 'party member critical health>cast::Lunar Eclipse!91'),
+    (0, 'starcaller-moon-priest', 3, 'medium group heal setting>cast heal party::Prayer of Elune!90'),
+    (0, 'starcaller-moon-priest', 4, 'medium group heal setting>cast::Lunar Eclipse!89'),
+    (0, 'starcaller-moon-priest', 5, 'medium group heal setting>cast heal party::Moonflow!88'),
+    (0, 'starcaller-moon-priest', 6, 'buff missing::Aspect of the Goddess>cast buff::Aspect of the Goddess!87'),
+    (0, 'starcaller-moon-priest', 7, 'cure party::Elune''s Purification>cast cure party::Elune''s Purification!86'),
+    (0, 'starcaller-moon-priest', 8, 'cure party::Prayer of Elune>cast cure party::Prayer of Elune!85'),
+    (0, 'starcaller-moon-priest', 9, 'party member medium health>cast heal party::Touch of Moonlight!84'),
+    (0, 'starcaller-moon-priest', 10, 'party member low health>cast heal party::Hand of Elune!83'),
+    (0, 'starcaller-moon-priest', 11, 'low mana>cast::Celestial Awakening!82'),
+    (0, 'starcaller-moon-priest', 12, 'low mana>cast::Moon Arrow!81'),
+    (0, 'starcaller-moon-priest', 13, 'buff missing::Reverse Magic>cast buff::Reverse Magic!30'),
+    (0, 'starcaller-moon-priest', 14, 'can cast::Stellar Convergence>cast::Stellar Convergence!77'),
+    (0, 'starcaller-moon-priest', 17, 'buff missing::Celestial Form>cast buff::Celestial Form!26'),
+    (0, 'starcaller-moon-priest', 18, 'can cast::Moonwell>cast::Moonwell!21'),
+    (0, 'starcaller-moon-priest', 19, 'buff missing::Greater Arcane Protection>cast buff party::Greater Arcane Protection!23'),
+    (0, 'starcaller-moon-priest', 20, 'buff missing::Greater Celestial Mind>cast buff party::Greater Celestial Mind!22'),
+    (0, 'starcaller-moon-priest', 21, 'can cast::Tidal Rebirth>cast::Tidal Rebirth!20'),
+    (0, 'starcaller-moon-priest', 22, 'can cast::Grace of the Moon>cast::Grace of the Moon!19'),
+    (0, 'starcaller-moon-priest', 23, 'can cast::Arcane Protection>cast::Arcane Protection!16'),
+    (0, 'starcaller-moon-priest', 25, 'can cast::Elune''s Purification>cast::Elune''s Purification!14'),
+    (0, 'starcaller-moon-priest', 27, 'can cast::Eclipse of Fury>cast::Eclipse of Fury!12'),
+    (0, 'starcaller-moon-priest', 29, 'can cast::Celestial Cleave>cast::Celestial Cleave!11'),
+    (0, 'starcaller-moon-priest', 30, 'can cast::Celestial Awakening>cast::Celestial Awakening!8'),
+    (0, 'starcaller-moon-priest', 31, 'buff missing::Lunar Eclipse>cast buff::Lunar Eclipse!10'),
+    (0, 'starcaller-moon-priest', 32, 'can cast::Stellar Drift>cast::Stellar Drift!7'),
+    (0, 'starcaller-moon-priest', 33, 'can cast::Celestial Mind>cast::Celestial Mind!5'),
+    (0, 'starcaller-moon-priest', 34, 'can cast::Huntress Shot>cast::Huntress Shot!80'),
+    (0, 'starcaller-moon-priest', 35, 'can cast::Moon Arrow>cast::Moon Arrow!3'),
+    (0, 'starcaller-moon-priest', 36, 'can cast::Celestial Strike>cast::Celestial Strike!29'),
+    (0, 'starcaller-moon-priest', 37, 'can cast::Starsunder>cast::Starsunder!2'),
+    (0, 'starcaller-moon-priest', 38, 'debuff missing::Lunar Lance>cast debuff::Lunar Lance!76'),
+    (0, 'starcaller-moon-priest', 39, 'can cast::Auto Shot>cast::Auto Shot!3'),
+    (0, 'starcaller-moon-priest', 40, 'can cast::Wand>cast::Wand!1'),
+    (0, 'starcaller-moon-priest', 41, 'can cast::Lunar Eclipse>cast::Lunar Eclipse!79'),
+    (0, 'starcaller-moon-priest', 42, 'can cast::Lunar Lance>cast::Lunar Lance!78');

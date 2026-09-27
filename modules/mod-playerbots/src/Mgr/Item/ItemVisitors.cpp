@@ -28,7 +28,10 @@ bool FindPotionVisitor::Accept(ItemTemplate const* proto)
 
             for (uint8 i = 0; i < 3; i++)
             {
-                if (spellInfo->Effects[i].Effect == effectId)
+                // A mana potion gives mana: a Rage Potion energizes too, and Cultist healers drank
+                // them as mana potions (jealous-sound #5077).
+                if (spellInfo->Effects[i].Effect == effectId &&
+                    (effectId != SPELL_EFFECT_ENERGIZE || spellInfo->Effects[i].MiscValue == POWER_MANA))
                     return true;
             }
         }

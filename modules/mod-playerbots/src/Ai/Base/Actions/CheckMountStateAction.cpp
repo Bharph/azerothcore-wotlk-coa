@@ -5,6 +5,7 @@
  */
 
 #include "CheckMountStateAction.h"
+#include "AscensionSpecialization.h"
 #include "AreaDefines.h"
 #include "BattleGroundTactics.h"
 #include "BattlegroundEY.h"
@@ -213,6 +214,11 @@ bool CheckMountStateAction::Mount()
     {
         botAI->RemoveShapeshift();
         botAI->RemoveAura("tree of life");
+        // The CoA forms (Venomancer Spider Form...) are shapeshifts under names of their own, which the
+        // mount refuses: a Venomancer stayed a spider beside its mounted player. Only here, when it
+        // mounts: RemoveShapeshift also runs when a bot closes on its target, where a tank keeps its form.
+        if (IsAscensionCustomClassId(bot->getClass()))
+            bot->RemoveAurasByType(SPELL_AURA_MOD_SHAPESHIFT);
     }
 
     if (TryPreferredMount(master))

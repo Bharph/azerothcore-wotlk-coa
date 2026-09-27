@@ -6,6 +6,7 @@
 
 #include "PlayerbotAIConfig.h"
 #include "BisListMgr.h"
+#include "CoaBotNames.h"
 #include "Config.h"
 #include "NewRpgInfo.h"
 #include "PlayerbotDungeonRepository.h"
@@ -736,6 +737,8 @@ bool PlayerbotAIConfig::Initialize()
     coaGroupTelemetry = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaGroupTelemetry", false);
     coaSmartHeal = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaSmartHeal", true);
     coaSmartTank = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaSmartTank", true);
+    coaRecruitSameFaction = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaRecruitSameFaction", true);
+    coaBotSurname = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaBotSurname", true);
     coaThreatHold = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaThreatHold", 0);
     coaTankOpenerSeconds = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaTankOpenerSeconds", 2);
     coaStatusFile = sConfigMgr->GetOption<std::string>("AiPlayerbot.CoaStatusFile", "");
@@ -745,7 +748,7 @@ bool PlayerbotAIConfig::Initialize()
     LoadSet<std::set<uint32>>(sConfigMgr->GetOption<std::string>("AiPlayerbot.CoaExcludedSpecializations", "99"),
                               coaExcludedSpecializations);
     coaOffensiveHealerSpecs.clear();
-    LoadSet<std::set<uint32>>(sConfigMgr->GetOption<std::string>("AiPlayerbot.CoaOffensiveHealerSpecs", "40"),
+    LoadSet<std::set<uint32>>(sConfigMgr->GetOption<std::string>("AiPlayerbot.CoaOffensiveHealerSpecs", "40,43"),
                               coaOffensiveHealerSpecs);
     // Des soins que la mesure a trouvés vides. Un bot compose sa trousse de soin à partir de tout
     // ce qu'il connaît, pas à partir de sa rotation : retirer la ligne de rotation ne suffit pas à
@@ -795,6 +798,7 @@ bool PlayerbotAIConfig::Initialize()
     {
         return true;
     }
+    ApplyCoaBotSurnames();
 
     // Assign account types after accounts are created
     sRandomPlayerbotMgr.AssignAccountTypes();

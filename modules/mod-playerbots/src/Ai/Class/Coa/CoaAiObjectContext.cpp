@@ -14,6 +14,7 @@
 #include "Group.h"
 #include "MovementActions.h"
 #include "NamedObjectContext.h"
+#include "NonCombatStrategy.h"
 #include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
 #include "Spell.h"
@@ -208,6 +209,80 @@ bool IsStance(SpellInfo const* info)
     }
 
     return aura;
+}
+
+// A stance that raises the threat its bearer causes: a tank's.
+bool RaisesThreat(SpellInfo const* info)
+{
+    for (SpellEffectInfo const& effect : info->Effects)
+        if (effect.IsAura() && effect.ApplyAuraName == SPELL_AURA_MOD_THREAT && effect.CalcValue() > 0)
+            return true;
+    return false;
+}
+
+// Swimming and breathing under water: a form to travel in, not to stand in.
+bool IsTravelForm(SpellInfo const* info)
+{
+    for (SpellEffectInfo const& effect : info->Effects)
+        if (effect.IsAura() && (effect.ApplyAuraName == SPELL_AURA_MOD_INCREASE_SWIM_SPEED ||
+                                effect.ApplyAuraName == SPELL_AURA_WATER_BREATHING))
+            return true;
+    return false;
+}
+
+// Whether the bot stands in this stance or in another of its family: any rank of it, or a stance of
+// the same spell category. Runic Tattoos share category 200 and come in several ranks; looking for the
+// exact spell id, the bot thought it wore none and put on a second tattoo, then a third (#5059).
+bool StandsIn(Player* bot, SpellInfo const* stance)
+{
+    uint32 const category = stance->GetCategory();
+    for (auto const& [id, application] : bot->GetAppliedAuras())
+    {
+        Aura const* aura = application->GetBase();
+        if (aura->GetCasterGUID() != bot->GetGUID() || aura->GetSpellInfo()->IsPassive())
+            continue;
+        SpellInfo const* worn = aura->GetSpellInfo();
+        if (worn->Id == stance->Id || (category && worn->GetCategory() == category) ||
+            (worn->SpellName[0] && stance->SpellName[0] && !strcmp(worn->SpellName[0], stance->SpellName[0])))
+            return true;
+    }
+    return false;
+}
+
+// Whether the unit wears this buff, its "Greater" form, or the plain form of a "Greater" one, from anyone.
+bool WearsBuffNamed(Unit* unit, SpellInfo const* buff)
+{
+    if (!buff->SpellName[0] || !*buff->SpellName[0])
+        return false;
+    std::string name(buff->SpellName[0]);
+    std::string const greater = "Greater ";
+    if (name.rfind(greater, 0) == 0)
+        name = name.substr(greater.size());
+    for (auto const& [id, application] : unit->GetAppliedAuras())
+    {
+        SpellInfo const* worn = application->GetBase()->GetSpellInfo();
+        if (!worn->SpellName[0])
+            continue;
+        std::string wornName(worn->SpellName[0]);
+        if (wornName.rfind(greater, 0) == 0)
+            wornName = wornName.substr(greater.size());
+        if (wornName == name && worn->IsPositive())
+            return true;
+    }
+    return false;
+}
+
+// Whether the bot wears a stance of its own that raises its threat.
+bool WearsThreatStance(Player* bot)
+{
+    for (auto const& [id, application] : bot->GetAppliedAuras())
+    {
+        Aura const* aura = application->GetBase();
+        if (aura->GetCasterGUID() == bot->GetGUID() && !aura->GetSpellInfo()->IsPassive() &&
+            RaisesThreat(aura->GetSpellInfo()))
+            return true;
+    }
+    return false;
 }
 
 // What a spell does, looking two levels into the spells it triggers: CoA abilities often
@@ -601,6 +676,22 @@ bool OnSameInstance(Player* a, Player* b)
 {
     return a->IsInWorld() && b->IsInWorld() && a->GetMapId() == b->GetMapId() && a->GetInstanceId() == b->GetInstanceId();
 }
+
+// The player the group plays for: the bot's master, or, for a bot of the dungeon finder (it has none),
+// the real player of its group on its instance. The tank of a dungeon finder group never pulled.
+Player* GroupPlayer(PlayerbotAI* botAI, Player* bot)
+{
+    Player* master = botAI->GetMaster();
+    if (master && !GET_PLAYERBOT_AI(master))
+        return master;
+    if (Group* group = bot->GetGroup())
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+            if (Player* member = ref->GetSource())
+                if (member != bot && !GET_PLAYERBOT_AI(member) && OnSameInstance(bot, member))
+                    return member;
+    return nullptr;
+}
+
 
 // The living tank of the bot's group on its own map instance, other than the bot itself.
 Player* GroupTank(Player* bot)
@@ -1524,6 +1615,24 @@ public:
     }
 };
 
+// A healer out of healing reach of the tank or out of its sight, in a fight: no heal of it can land
+// there. Its rotation outranks "coa far from tank" (priorities 30 to 92 against 18), so a Cultist
+// healer left on the Deadmines platform kept casting Gaze of C'Thun and wanding the whole boss fight
+// (jealous-sound #5094). This one outranks the rotation.
+class CoaOutOfHealingReachTrigger : public Trigger
+{
+public:
+    CoaOutOfHealingReachTrigger(PlayerbotAI* botAI) : Trigger(botAI, "coa out of healing reach") {}
+
+    bool IsActive() override
+    {
+        if (!SmartHeal() || GetCoaRole(bot) != CoaRole::Heal || !(bot->IsInCombat() || GroupFighting(bot)))
+            return false;
+        Player* tank = GroupTank(bot);
+        return tank && (bot->GetDistance(tank) > sPlayerbotAIConfig.healDistance || !bot->IsWithinLOSInMap(tank));
+    }
+};
+
 // Moves back within StayNearTank of the tank, between two casts.
 class CoaStayNearTankAction : public MovementAction
 {
@@ -1568,8 +1677,7 @@ public:
         if (said || !SmartHeal() || bot->getPowerType() != POWER_MANA || GetCoaRole(bot) != CoaRole::Heal ||
             !bot->IsInCombat() || bot->GetPowerPct(POWER_MANA) >= 20.0f)
             return false;
-        Player* master = botAI->GetMaster();
-        return master && !GET_PLAYERBOT_AI(master) && bot->GetGroup();
+        return bot->GetGroup() && GroupPlayer(botAI, bot);
     }
 };
 
@@ -1734,7 +1842,23 @@ public:
         // (five Boons, twenty-two Runic Tattoos): take one only while standing in none, or
         // two of them would take turns for ever.
         bool const inStance = std::any_of(spells.begin(), spells.end(), [this](Usable const& spell)
-            { return (spell.kind & KIND_STANCE) && bot->HasAura(spell.info->Id); });
+            { return (spell.kind & KIND_STANCE) && StandsIn(bot, spell.info); });
+
+        // A tank takes its tank stance, the one raising its threat (Felsworn Agonizing Presence), in
+        // place of any other it stood in: the first stance known was taken and kept, and tanks were
+        // seen in dungeons without theirs (jealous-sound #5063, #5173). The others never take it.
+        bool const tank = GetCoaRole(bot) == CoaRole::Tank;
+        bool const knowsTankStance = tank && std::any_of(spells.begin(), spells.end(), [](Usable const& spell)
+            { return (spell.kind & KIND_STANCE) && RaisesThreat(spell.info); });
+        // Worn, not merely of the same name: Reaper has two "Dominion", the tank stance 807735 and a proc
+        // buff 803999, and the second one made a tank believe it stood in its stance.
+        bool const inTankStance = WearsThreatStance(bot);
+
+        // A damage dealer or a healer standing in a tank stance (its rotation used to put it on) steps out.
+        if (!tank)
+            for (Usable const& spell : spells)
+                if ((spell.kind & KIND_STANCE) && RaisesThreat(spell.info) && bot->HasAura(spell.info->Id))
+                    bot->RemoveAurasDueToSpell(spell.info->Id);
 
         time_t const now = time(nullptr);
         if (recent.size() > 64)
@@ -1748,8 +1872,15 @@ public:
                     continue;
 
                 // A stance is the bot's own, and only when it stands in none.
-                if ((spell.kind & KIND_STANCE) && (member != bot || inStance))
-                    continue;
+                if (spell.kind & KIND_STANCE)
+                {
+                    bool const threat = RaisesThreat(spell.info);
+                    // A travel form (Sea Serpent Form: swim speed, water breathing) is no stance to fight in.
+                    if (member != bot || (threat && !tank) || IsTravelForm(spell.info))
+                        continue;
+                    if (knowsTankStance ? (!threat || inTankStance) : inStance)
+                        continue;
+                }
 
                 // A healer keeps out of a form its heals cannot be cast in.
                 if ((spell.kind & KIND_STANCE) && GetCoaRole(bot) == CoaRole::Heal && FormBlocksHeals(bot, spell.info))
@@ -1761,6 +1892,11 @@ public:
                 // One buff per category: several of a displacing group would
                 // chase each other forever. See HasBuffOfCategory.
                 if (HasBuffOfCategory(member, spell.info->GetCategory(), spell.info->Id))
+                    continue;
+
+                // Nor the same buff over its greater form or the other way round, whoever cast it: a Witch
+                // Hunter bot put Knight's Edict on a player who wore Greater Knight's Edict (#5385).
+                if (WearsBuffNamed(member, spell.info))
                     continue;
 
                 // The aura may come from a triggered spell under another id: do not recast
@@ -1998,6 +2134,7 @@ public:
         // attacks, below every heal - and a word to the group when the mana runs out.
         triggers.push_back(new TriggerNode("coa tank needs hot", { NextAction("coa hot", ACTION_MEDIUM_HEAL - 1) }));
         triggers.push_back(new TriggerNode("coa far from tank", { NextAction("coa stay near tank", ACTION_MEDIUM_HEAL - 2) }));
+        triggers.push_back(new TriggerNode("coa out of healing reach", { NextAction("coa stay near tank", ACTION_EMERGENCY + 5) }));
         triggers.push_back(new TriggerNode("coa healer low mana", { NextAction("coa say low mana", ACTION_MEDIUM_HEAL + 8) }));
     }
 
@@ -2073,8 +2210,8 @@ public:
         if (!sPlayerbotAIConfig.coaSmartTank || !PlayerbotAI::IsTank(bot) || bot->IsInCombat() || !bot->IsAlive() ||
             !bot->GetMap()->IsDungeon())
             return false;
-        Player* master = botAI->GetMaster();
-        if (!master || GET_PLAYERBOT_AI(master) || !OnSameInstance(bot, master))
+        Player* master = GroupPlayer(botAI, bot);
+        if (!master || !OnSameInstance(bot, master))
             return false;
         time_t const last = static_cast<CoaAiObjectContext*>(botAI->GetAiObjectContext())->lastAutoPull;
         return time(nullptr) - last >= AutoPullPause && GroupReadyToPull(bot) && NextPull(botAI, bot, master);
@@ -2088,7 +2225,7 @@ public:
 
     bool Execute(Event /*event*/) override
     {
-        Player* master = botAI->GetMaster();
+        Player* master = GroupPlayer(botAI, bot);
         Unit* target = master ? NextPull(botAI, bot, master) : nullptr;
         if (!target)
             return false;
@@ -2294,6 +2431,17 @@ public:
     }
 };
 
+// The base out-of-combat strategy every WotLK class registers as "nc": its timer checks the mount
+// state (mounting up with the master, getting off). The CoA classes had none, so "mount" was listed
+// but nothing ever asked, and bots walked beside a mounted player (found in game, 27/09).
+class CoaNonCombatStrategy : public NonCombatStrategy
+{
+public:
+    CoaNonCombatStrategy(PlayerbotAI* botAI) : NonCombatStrategy(botAI) {}
+
+    std::string const getName() override { return "nc"; }
+};
+
 class CoaStrategyFactoryInternal : public NamedObjectContext<Strategy>
 {
 public:
@@ -2303,17 +2451,32 @@ public:
         creators["coa ranged"] = &CoaStrategyFactoryInternal::coa_ranged;
         creators["coa tank"] = &CoaStrategyFactoryInternal::coa_tank;
         creators["coa heal"] = &CoaStrategyFactoryInternal::coa_heal;
-        creators["coa buff"] = &CoaStrategyFactoryInternal::coa_buff;
-        creators["coa auto pull"] = &CoaStrategyFactoryInternal::coa_auto_pull;
     }
 
 private:
     static Strategy* coa(PlayerbotAI* botAI) { return new CoaCombatStrategy(botAI); }
-    static Strategy* coa_auto_pull(PlayerbotAI* botAI) { return new CoaAutoPullStrategy(botAI); }
     static Strategy* coa_ranged(PlayerbotAI* botAI) { return new CoaCombatStrategy(botAI, true); }
     static Strategy* coa_tank(PlayerbotAI* botAI) { return new CoaTankStrategy(botAI); }
     static Strategy* coa_heal(PlayerbotAI* botAI) { return new CoaHealStrategy(botAI); }
+};
+
+// The out-of-combat strategies, which a bot holds together. In the factory above their names were
+// siblings of one another: adding "coa auto pull" took "coa buff" off every tank, and "nc" then took
+// the auto pull off (a dungeon finder tank never pulled, 27/09).
+class CoaNonCombatStrategyFactoryInternal : public NamedObjectContext<Strategy>
+{
+public:
+    CoaNonCombatStrategyFactoryInternal() : NamedObjectContext<Strategy>(false, false)
+    {
+        creators["coa buff"] = &CoaNonCombatStrategyFactoryInternal::coa_buff;
+        creators["coa auto pull"] = &CoaNonCombatStrategyFactoryInternal::coa_auto_pull;
+        creators["nc"] = &CoaNonCombatStrategyFactoryInternal::nc;
+    }
+
+private:
+    static Strategy* coa_auto_pull(PlayerbotAI* botAI) { return new CoaAutoPullStrategy(botAI); }
     static Strategy* coa_buff(PlayerbotAI* botAI) { return new CoaBuffStrategy(botAI); }
+    static Strategy* nc(PlayerbotAI* botAI) { return new CoaNonCombatStrategy(botAI); }
 };
 
 class CoaActionFactoryInternal : public NamedObjectContext<Action>
@@ -2377,6 +2540,7 @@ public:
         creators["coa group member dead"] = &CoaTriggerFactoryInternal::coa_group_member_dead;
         creators["coa lost the player"] = &CoaTriggerFactoryInternal::coa_lost_the_player;
         creators["coa far from tank"] = &CoaTriggerFactoryInternal::coa_far_from_tank;
+        creators["coa out of healing reach"] = &CoaTriggerFactoryInternal::coa_out_of_healing_reach;
         creators["coa healer low mana"] = &CoaTriggerFactoryInternal::coa_healer_low_mana;
     }
 
@@ -2389,6 +2553,7 @@ private:
     static Trigger* coa_group_member_dead(PlayerbotAI* botAI) { return new CoaGroupMemberDeadTrigger(botAI); }
     static Trigger* coa_lost_the_player(PlayerbotAI* botAI) { return new CoaLostThePlayerTrigger(botAI); }
     static Trigger* coa_far_from_tank(PlayerbotAI* botAI) { return new CoaFarFromTankTrigger(botAI); }
+    static Trigger* coa_out_of_healing_reach(PlayerbotAI* botAI) { return new CoaOutOfHealingReachTrigger(botAI); }
     static Trigger* coa_healer_low_mana(PlayerbotAI* botAI) { return new CoaLowManaTrigger(botAI); }
 };
 
@@ -2512,6 +2677,7 @@ void CoaAiObjectContext::BuildSharedStrategyContexts(SharedNamedObjectContextLis
 {
     AiObjectContext::BuildSharedStrategyContexts(strategyContexts);
     strategyContexts.Add(new CoaStrategyFactoryInternal());
+    strategyContexts.Add(new CoaNonCombatStrategyFactoryInternal());
 }
 
 void CoaAiObjectContext::BuildSharedActionContexts(SharedNamedObjectContextList<Action>& actionContexts)

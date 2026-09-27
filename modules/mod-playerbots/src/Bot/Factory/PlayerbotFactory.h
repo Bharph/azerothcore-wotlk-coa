@@ -78,6 +78,8 @@ public:
     void InitClassSpells();
     void InitSpecialSpells();
     void InitEquipment(bool incremental, bool second_chance = false);
+    // A CoA bot under level 5 left naked by an older version gets its class starter kit back.
+    static void DressNakedCoaStarter(Player* bot);
     void InitPet();
     void InitAmmo();
     static uint32 CalcMixedGearScore(uint32 gs, uint32 quality);

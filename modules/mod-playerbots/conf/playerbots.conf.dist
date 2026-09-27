@@ -1509,9 +1509,9 @@ AiPlayerbot.CoaExcludedSpecializations = 99
 #        Description: Healer specializations whose damage is their healing: they keep dealing damage
 #                     whatever their mana (the healer mana reserve would take their heals away).
 #                     Read again by .reload config.
-#        Default:     40 (Cultist Heretic)
+#        Default:     40,43 (Cultist Heretic, Starcaller Moon Priest)
 
-AiPlayerbot.CoaOffensiveHealerSpecs = 40
+AiPlayerbot.CoaOffensiveHealerSpecs = 40,43
 
 #
 #    AiPlayerbot.CoaHealsExcluded
@@ -1527,6 +1527,30 @@ AiPlayerbot.CoaOffensiveHealerSpecs = 40
 #
 
 AiPlayerbot.CoaHealsExcluded = "Nanobot Reconstruction"
+
+#
+#    AiPlayerbot.CoaBotSurname
+#        Description: Random bots carry the surname "Bot" ("Kegarink Bot"), so players tell them from
+#                     real players at a glance: nameplates, tooltips, chat, /who.
+#                     Applied at the next start: turned off, the bots take their own names back.
+#                     Needs a client that shows two-word names (CoA client revision 8 or later).
+#                     To whisper a bot by typing its name: /w "Kegarink Bot" hello
+#        Default:     1 - on
+#                     0 - off
+
+AiPlayerbot.CoaBotSurname = 1
+
+#
+#    AiPlayerbot.CoaRecruitSameFaction
+#        Description: Bots recruited by a player (lfg bot, .playerbots coa tank|heal|dps, the
+#                     SquidBots buttons) are of the player's faction, even on a realm that allows
+#                     cross-faction groups (AllowTwoSide.Interaction.Group = 1): a bot of the other
+#                     faction is attacked by the guards and faction creatures on the way, and does
+#                     not understand what the player says in party chat.
+#        Default:     1 - the player's faction only
+#                     0 - any faction when the realm allows cross-faction groups
+
+AiPlayerbot.CoaRecruitSameFaction = 1
 
 #
 #    AiPlayerbot.CoaLfgBots

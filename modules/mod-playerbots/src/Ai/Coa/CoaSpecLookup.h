@@ -47,4 +47,14 @@ inline bool IsCoaRole(Player const* player, CoaSpecRole role)
     return spec && spec->role == role;
 }
 
+// A spec whose rotation fires a real ranged weapon, so it must not be handed a wand. Starcaller Moon
+// Priest heals through Huntress Shot: the shot lays the Scattered Stars that Lunar Lance consumes, and
+// in Aspect of the Goddess every star consumed heals the allies around (half of a real player's
+// healing, 25/09). Healer stat weights always rank a wand first, and a wand cannot fire the shot.
+inline bool CoaSpecNeedsShootingWeapon(Player const* player)
+{
+    CoaSpecStrategy const* spec = GetCoaSpecStrategyFor(player);
+    return spec && spec->classId == 26 && spec->specId == 43;
+}
+
 #endif

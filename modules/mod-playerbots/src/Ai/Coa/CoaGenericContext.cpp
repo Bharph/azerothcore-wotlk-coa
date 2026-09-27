@@ -264,21 +264,35 @@ bool CoaCanCastTrigger::IsActive()
     if (bot->HasAura(id) && (duration < 0 || duration > 60 * IN_MILLISECONDS))
         return false;
 
+    // Travel utility has no place in a rotation: Grace of the Moon, a water walk at 40% of base mana
+    // that any damage cancels, took 79% of a Starcaller healer's mana in one fight. Looked for in the
+    // spell a CoA ability triggers too: Tinker's Parachute Pack hands its slow fall out through
+    // another spell, and bots kept putting parachutes on the group.
+    auto const travelUtility = [](SpellInfo const* spell)
+    {
+        for (SpellEffectInfo const& effect : spell->Effects)
+            if (effect.Effect == SPELL_EFFECT_APPLY_AURA || effect.Effect == SPELL_EFFECT_APPLY_AREA_AURA_PARTY ||
+                effect.Effect == SPELL_EFFECT_APPLY_AREA_AURA_RAID)
+                switch (effect.ApplyAuraName)
+                {
+                    case SPELL_AURA_WATER_WALK: case SPELL_AURA_FEATHER_FALL: case SPELL_AURA_HOVER:
+                    case SPELL_AURA_WATER_BREATHING:
+                        return true;
+                    default:
+                        break;
+                }
+        return false;
+    };
+    if (travelUtility(info))
+        return false;
+
     bool summons = false;
     for (SpellEffectInfo const& effect : info->Effects)
     {
-        // Travel utility has no place in a rotation: Grace of the Moon, a water walk at 40% of base
-        // mana that any damage cancels, took 79% of a Starcaller healer's mana in one fight.
-        if (effect.Effect == SPELL_EFFECT_APPLY_AURA || effect.Effect == SPELL_EFFECT_APPLY_AREA_AURA_PARTY ||
-            effect.Effect == SPELL_EFFECT_APPLY_AREA_AURA_RAID)
-            switch (effect.ApplyAuraName)
-            {
-                case SPELL_AURA_WATER_WALK: case SPELL_AURA_FEATHER_FALL: case SPELL_AURA_HOVER:
-                case SPELL_AURA_WATER_BREATHING:
+        if (effect.Effect == SPELL_EFFECT_TRIGGER_SPELL && effect.TriggerSpell)
+            if (SpellInfo const* triggered = sSpellMgr->GetSpellInfo(effect.TriggerSpell))
+                if (travelUtility(triggered))
                     return false;
-                default:
-                    break;
-            }
         if (effect.Effect == SPELL_EFFECT_SUMMON)
             summons = true;
     }

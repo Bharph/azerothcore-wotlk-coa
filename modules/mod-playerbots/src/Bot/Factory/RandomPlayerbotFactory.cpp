@@ -8,6 +8,7 @@
 #include "AccountMgr.h"
 #include "ArenaTeamMgr.h"
 #include "CharacterCache.h"
+#include "CoaBotNames.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
 #include "DatabaseEnv.h"
@@ -117,6 +118,17 @@ Player* RandomPlayerbotFactory::CreateRandomBot(WorldSession* session, uint8 cls
     {
         LOG_ERROR("playerbots", "Failed to get a valid random bot name");
         return nullptr;
+    }
+
+    // "Kegarink Bot" with AiPlayerbot.CoaBotSurname: the first name alone was checked free, the
+    // whole name may not be (a bot renamed at an earlier start holds it).
+    if (std::string const surnamed = CoaBotName(name); surnamed != name)
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHECK_NAME);
+        stmt->SetData(0, surnamed);
+        if (CharacterDatabase.Query(stmt))
+            return nullptr;
+        name = surnamed;
     }
 
     std::vector<uint8> skinColors, facialHairTypes;

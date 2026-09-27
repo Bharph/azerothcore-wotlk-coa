@@ -166,16 +166,19 @@ bool AcceptQuestShareAction::Execute(Event event)
         return false;
     }
 
+    // The answer goes to whoever shared the quest: a bot of the dungeon finder has no master.
+    Player* sharer = ObjectAccessor::FindPlayer(bot->GetDivider());
     if (!bot->GetDivider().IsEmpty())
     {
         // send msg to quest giving player
-        master->SendPushToPartyResponse(bot, QUEST_PARTY_MSG_ACCEPT_QUEST);
+        if (sharer)
+            sharer->SendPushToPartyResponse(bot, QUEST_PARTY_MSG_ACCEPT_QUEST);
         bot->SetDivider(ObjectGuid::Empty);
     }
 
     if (bot->CanAddQuest(qInfo, false))
     {
-        bot->AddQuest(qInfo, master);
+        bot->AddQuest(qInfo, sharer ? sharer : master);
 
         if (bot->CanCompleteQuest(quest))
             bot->CompleteQuest(quest);
