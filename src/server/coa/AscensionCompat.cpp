@@ -5411,6 +5411,7 @@ public:
     {
         if (ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
         {
+            SendAscensionCoAConfig(player->GetSession());
             AscensionCollectionService::Instance().PrepareOwnedCompanionsBeforeMap(player);
             AscensionCollectionService::Instance().PrepareOwnedBankSpellsBeforeMap(player);
             AscensionClassService::Instance().PrepareTaughtAbilitiesBeforeMap(player);
@@ -5490,7 +5491,6 @@ public:
   void OnPlayerLogin(Player *player) override {
     if (ascensionCompatConfig.GetConfigValue<bool>(
             AscensionCompatConfig::ENABLED)) {
-      SendAscensionCoAXpConfig(player->GetSession());
       AscensionClassService::Instance().OnPlayerLogin(player);
       RemoveLegacyQuestSpells(player);
       SynchronizeAscensionClassMechanics(player);
@@ -5982,7 +5982,7 @@ public:
 
     for (auto const& [accountId, session] : sWorldSessionMgr->GetAllSessions())
       if (session && session->GetPlayer() && session->GetPlayer()->IsInWorld())
-        SendAscensionCoAXpConfig(session);
+        SendAscensionCoAConfig(session);
   }
 
   void OnLoadCustomDatabaseTable() override {
@@ -6739,6 +6739,9 @@ public:
 };
 
 void AddAscensionCompatScripts() {
+  RegisterAscensionClientConfig([](AscensionClientConfig& config) {
+    config.Booleans.emplace_back("CONFIG_CHARACTER_ADVANCEMENT_BUILD_INSPECT_ENABLED", true);
+  });
   new npc_ascension_training_book();
   RegisterSpellScript(spell_ascension_personal_bank);
   RegisterSpellScript(spell_ascension_experience_potion);
