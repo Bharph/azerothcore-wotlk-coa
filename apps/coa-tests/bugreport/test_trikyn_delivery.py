@@ -138,12 +138,17 @@ class FeedbackFlowTests(unittest.TestCase):
             self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service), "posted")
         self.assertEqual(urlopen.call_count, 1)
 
-    def test_feedback_transient_failure_retries_without_status(self):
+    def test_feedback_transient_failure_retries_after_backoff(self):
+        now = 2000.0
         with patch.object(trikyn.urllib.request, "urlopen", side_effect=OSError("down")):
-            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service), "queued")
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service, lambda: now), "queued")
         self.assertFalse(self.path.with_suffix(".status").exists())
+        self.assertGreater(trikyn.read_retry_at(self.path.with_suffix(".retry")), now)
+        with patch.object(trikyn.urllib.request, "urlopen", return_value=FakeResponse()) as urlopen:
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service, lambda: now), "queued")
+            urlopen.assert_not_called()
         with patch.object(trikyn.urllib.request, "urlopen", return_value=FakeResponse()):
-            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service), "posted")
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service, lambda: now + 301), "posted")
         self.assertEqual(self.status(), "posted")
 
     def test_feedback_terminal_failure_marks_failed_not_retried(self):
@@ -151,6 +156,38 @@ class FeedbackFlowTests(unittest.TestCase):
         with patch.object(trikyn.urllib.request, "urlopen", side_effect=err):
             self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service), "failed")
         self.assertEqual(self.status(), "failed")
+
+    def test_rate_limited_feedback_waits_without_calling_discord(self):
+        err = trikyn.urllib.error.HTTPError("https://x", 429, "Too Many", {"Retry-After": "120"}, None)
+        now = 1000.0
+        with patch.object(trikyn.urllib.request, "urlopen", side_effect=err) as urlopen:
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service, lambda: now), "queued")
+            self.assertEqual(urlopen.call_count, 1)
+            self.assertAlmostEqual(trikyn.read_retry_at(self.path.with_suffix(".retry")), now + 120, places=2)
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service, lambda: now + 60), "queued")
+            self.assertEqual(urlopen.call_count, 1)
+        with patch.object(trikyn.urllib.request, "urlopen", return_value=FakeResponse()) as urlopen:
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service, lambda: now + 121), "posted")
+            self.assertEqual(urlopen.call_count, 1)
+        self.assertEqual(self.status(), "posted")
+        self.assertFalse(self.path.with_suffix(".retry").exists())
+
+    def test_server_error_backs_off_and_clears_after_success(self):
+        err = trikyn.urllib.error.HTTPError("https://x", 503, "Unavailable", {"Retry-After": "45"}, None)
+        now = 500.0
+        with patch.object(trikyn.urllib.request, "urlopen", side_effect=err):
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service, lambda: now), "queued")
+        self.assertAlmostEqual(trikyn.read_retry_at(self.path.with_suffix(".retry")), now + 45, places=2)
+        with patch.object(trikyn.urllib.request, "urlopen", return_value=FakeResponse()):
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service, lambda: now + 46), "posted")
+        self.assertFalse(self.path.with_suffix(".retry").exists())
+
+    def test_terminal_failure_clears_pending_backoff(self):
+        trikyn.write_retry_at(self.path.with_suffix(".retry"), 0.0)
+        err = trikyn.urllib.error.HTTPError("https://x", 403, "Forbidden", {}, None)
+        with patch.object(trikyn.urllib.request, "urlopen", side_effect=err):
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service, lambda: 10.0), "failed")
+        self.assertFalse(self.path.with_suffix(".retry").exists())
 
 
 class JournalIntegrationTests(unittest.TestCase):
