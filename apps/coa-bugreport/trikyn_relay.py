@@ -85,15 +85,16 @@ class TrikynDelivery:
         number = self._open_issue(cleaned, body)
         embed = self._embed("In-game bug report", cleaned, body, BUG_COLOR,
                             f"in-game submission · issue #{number}")
-        if not self._post_embed(self.bug_channel, embed):
+        try:
+            self._post_embed(self.bug_channel, embed)
+        except DeliveryError:
             print(f"warning: Discord card post failed for issue #{number}", flush=True)
         return number
 
     def deliver_feedback(self, title: str, body: str):
         _, cleaned = classify(title)
         embed = self._embed("In-game feedback", cleaned, body, FEEDBACK_COLOR, "in-game submission · feedback")
-        if not self._post_embed(self.feedback_channel, embed):
-            raise DeliveryError("uncertain")
+        self._post_embed(self.feedback_channel, embed)
 
     def _open_issue(self, title: str, body: str) -> int:
         command = ["gh", "issue", "create", "--repo", self.tracker, "--title", title, "--body", body]
@@ -141,7 +142,7 @@ class TrikynDelivery:
             "image": {"url": f"attachment://{SPACER_NAME}"},
         }
 
-    def _post_embed(self, channel: str, embed: dict) -> bool:
+    def _post_embed(self, channel: str, embed: dict) -> None:
         payload = {"embeds": [embed], "attachments": [{"id": 0, "filename": SPACER_NAME}]}
         boundary = "----trikyn" + uuid.uuid4().hex
         request = urllib.request.Request(f"{DISCORD_API}/channels/{channel}/messages",
@@ -151,9 +152,17 @@ class TrikynDelivery:
         request.add_header("User-Agent", USER_AGENT)
         try:
             with urllib.request.urlopen(request, timeout=20) as response:
-                return 200 <= response.status < 300
+                if 200 <= response.status < 300:
+                    return
+            raise DeliveryError("uncertain")
+        except urllib.error.HTTPError as error:
+            if error.code in (401, 403, 404):
+                raise DeliveryError("blocked") from None
+            if error.code == 429:
+                raise DeliveryError("limited", 900) from None
+            raise DeliveryError("uncertain") from None
         except (urllib.error.URLError, OSError):
-            return False
+            raise DeliveryError("uncertain") from None
 
     @staticmethod
     def _multipart(boundary: str, payload: dict, png: bytes) -> bytes:
@@ -179,7 +188,12 @@ def process_feedback(root: Path, path: Path, service: TrikynDelivery) -> str:
         return "failed"
     try:
         service.deliver_feedback(title, body)
-    except DeliveryError:
+    except DeliveryError as error:
+        if error.kind in ("blocked", "invalid"):
+            write_status(root, key, "failed")
+            print(f"feedback {key}: terminal Discord error ({error.kind}); marked failed", flush=True)
+            return "failed"
+        print(f"feedback {key}: transient Discord error ({error.kind}); will retry", flush=True)
         return "queued"
     write_status(root, key, "posted")
     return "posted"
