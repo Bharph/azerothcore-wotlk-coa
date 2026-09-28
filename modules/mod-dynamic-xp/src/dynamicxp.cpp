@@ -15,6 +15,8 @@ Local additions:
 #include "Chat.h"
 #include "CommandScript.h"
 #include "Configuration/Config.h"
+#include "Group.h"
+#include "ObjectAccessor.h"
 #include "Player.h"
 #include "ScriptMgr.h"
 
@@ -34,6 +36,7 @@ namespace
     constexpr char PRESET_CONFIG_KEY[] = "Dynamic.XP.Preset";
     constexpr char PRESET_CONFIG_FILE[] = "modules/dynamicxp.conf";
     constexpr char PLAYER_CHOICE_CONFIG_KEY[] = "Dynamic.XP.Preset.PlayerChoice";
+    constexpr char BOTS_INHERIT_LEADER_CONFIG_KEY[] = "Dynamic.XP.Bots.InheritLeader";
 
     /// A character's own choice, stored as preset + 1 so that a stored row is never a
     /// zero and "no personal choice yet" stays distinguishable from "chose the curve".
@@ -95,6 +98,14 @@ namespace
         return sConfigMgr->GetOption<bool>(PLAYER_CHOICE_CONFIG_KEY, true);
     }
 
+    /// Trikyn overlay: a bot in someone's group follows the group leader's own
+    /// ".xp" rate instead of the realm default. Off restores stock per-character
+    /// behaviour. Real players are never affected either way.
+    bool BotsInheritLeader()
+    {
+        return sConfigMgr->GetOption<bool>(BOTS_INHERIT_LEADER_CONFIG_KEY, true);
+    }
+
     /// A character's own choice. False when they have never made one.
     bool PersonalPreset(Player const *player, uint32 &preset)
     {
@@ -132,6 +143,36 @@ namespace
         if (PlayersMayChoose() && PersonalPreset(player, preset))
             return preset;
         return RealmPreset();
+    }
+
+    /// The preset to grant XP by. A grouped bot borrows its group leader's
+    /// effective rate (the leader's own choice, else the realm's) so a summoned
+    /// party keeps pace with the player who invited it; the caller still passes
+    /// the bot to ApplyPreset, so the band curve reads the bot's own level. Every
+    /// real player, every solo bot, and a bot whose leader is offline or itself a
+    /// bot fall through to their own rate, exactly as stock.
+    uint32 RecipientPreset(Player const *player)
+    {
+        if (!player || !BotsInheritLeader() || !PlayersMayChoose())
+            return EffectivePreset(player);
+
+        WorldSession const *session = player->GetSession();
+        if (!session || !session->IsBot())
+            return EffectivePreset(player);
+
+        Group const *group = player->GetGroup();
+        if (!group)
+            return EffectivePreset(player);
+
+        Player const *leader = ObjectAccessor::FindConnectedPlayer(group->GetLeaderGUID());
+        if (!leader || leader == player)
+            return EffectivePreset(player);
+
+        WorldSession const *leaderSession = leader->GetSession();
+        if (!leaderSession || leaderSession->IsBot())
+            return EffectivePreset(player);
+
+        return EffectivePreset(leader);
     }
 
     std::string DescribePreset(uint32 preset)
@@ -274,7 +315,7 @@ public:
 
     void OnPlayerGiveXP(Player* player, uint32& amount, Unit* /*victim*/, uint8 /*xpSource*/) override
     {
-        ApplyPreset(player, amount, EffectivePreset(player));
+        ApplyPreset(player, amount, RecipientPreset(player));
     }
 };
 
