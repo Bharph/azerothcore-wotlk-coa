@@ -146,6 +146,12 @@ class FeedbackFlowTests(unittest.TestCase):
             self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service), "posted")
         self.assertEqual(self.status(), "posted")
 
+    def test_feedback_terminal_failure_marks_failed_not_retried(self):
+        err = trikyn.urllib.error.HTTPError("https://x", 403, "Forbidden", {}, None)
+        with patch.object(trikyn.urllib.request, "urlopen", side_effect=err):
+            self.assertEqual(trikyn.process_feedback(self.root, self.path, self.service), "failed")
+        self.assertEqual(self.status(), "failed")
+
 
 class JournalIntegrationTests(unittest.TestCase):
     def setUp(self):
