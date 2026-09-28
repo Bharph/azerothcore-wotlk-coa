@@ -119,7 +119,7 @@ ACTIONS = {
     'set_moving': ({'actor', 'enabled'}, {'actor', 'enabled'}),
     'level_scaling_packet': ({'actor', 'value'}, {'actor', 'value'}),
     'client_packet': ({'actor', 'opcode'}, {'actor', 'opcode', 'fields', 'consumed'}),
-    'specialization': ({'actor', 'id'}, {'actor', 'id'}),
+    'specialization': ({'actor', 'id'}, {'actor', 'id', 'refused'}),
     'advancement_rank': ({'actor', 'entry', 'rank'}, {'actor', 'entry', 'rank'}),
     'apply_appearances': ({'actor', 'selection'}, {'actor', 'selection'}),
     'sell_item': ({'actor', 'entry', 'item'}, {'actor', 'entry', 'item', 'count'}),
@@ -401,6 +401,7 @@ def validate(scenario):
         if action == 'specialization':
             require(step['actor'] in player_ids, f'{where}: specialization needs a player')
             number(step['id'], f'{where}.id', 1, 0xFFFF, True)
+            require(type(step.get('refused', False)) is bool, f'{where}: refused must be boolean')
         if action == 'advancement_rank':
             require(step['actor'] in player_ids, f'{where}: advancement_rank needs a player')
             number(step['entry'], f'{where}.entry', 1, 2**32 - 1, True)
@@ -583,6 +584,10 @@ def validate(scenario):
                 require('quest' in step, f'{where}: metric needs quest')
             if metric == 'gossip_text':
                 require('id' in step, f'{where}: metric needs text id')
+            if metric == 'gossip_option_text':
+                require(isinstance(step.get('text'), str) and step['text'].strip(),
+                        f'{where}: metric needs the option text')
+                number(step.get('index'), f'{where}.index', 0, 255, True)
             if metric == 'quest_menu_has':
                 require('quest' in step, f'{where}: metric needs quest')
             if metric == 'player_setting':

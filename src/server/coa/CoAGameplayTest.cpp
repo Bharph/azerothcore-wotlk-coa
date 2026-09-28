@@ -105,6 +105,7 @@ constexpr uint32 MaximumActors = 8;
 constexpr uint16 LevelScalingOpcode = 0x0667;
 constexpr uint16 ApplyAppearancesOpcode = 0x0697;
 constexpr uint16 KnownEntriesUploadOpcode = 0x0727;
+constexpr uint16 UpdateEntriesResultOpcode = 0x072C;
 constexpr uint32 TalentRequestWindowMs = 2000;
 
 void Require(bool condition, std::string const& message)
@@ -1818,6 +1819,14 @@ private:
         }
         if (metric == "gossip_options")
             return player->PlayerTalkClass->GetGossipMenu().GetMenuItemCount();
+        if (metric == "gossip_option_text")
+        {
+            GossipMenuItemContainer const& options = player->PlayerTalkClass->GetGossipMenu().GetMenuItems();
+            uint32 const index = step.get<uint32>("index");
+            if (index >= options.size())
+                return 0;
+            return std::next(options.begin(), index)->second.Message == step.get<std::string>("text");
+        }
         if (metric == "loot_received")
             return _actors.at(step.get<std::string>("actor")).lootReceived;
         if (metric == "nearby_gameobject_count")
@@ -2790,9 +2799,11 @@ private:
         {
             Player* player = GetPlayer(step.get<std::string>("actor"));
             bool const specialization = action == "specialization";
+            uint32& results = _actors.at(step.get<std::string>("actor")).extensionPackets[UpdateEntriesResultOpcode];
             if (!_talentRequestSent)
             {
                 _talentRequestSent = true;
+                _talentResultsBefore = results;
                 WorldPacket upload = KnownEntriesUpload(specialization
                     ? AscensionCoATalentState::SpecializationSwitch(player->getClass(), SpellbookOf(player),
                         step.get<uint32>("id"))
@@ -2803,6 +2814,14 @@ private:
             bool const applied = specialization
                 ? GetAscensionActiveSpecialization(player) == step.get<uint32>("id")
                 : GetAscensionTalentRank(player, step.get<uint32>("entry")) == step.get<uint32>("rank");
+            if (step.get<bool>("refused", false))
+            {
+                bool const answered = results > _talentResultsBefore;
+                if (!answered && GameElapsed(_stepTime) < TalentRequestWindowMs)
+                    return;
+                Require(answered && !applied, "The server did not refuse the upload");
+                return;
+            }
             if (!applied && GameElapsed(_stepTime) < TalentRequestWindowMs)
                 return;
             Require(applied, specialization ? "The server did not activate the uploaded specialization"
@@ -3762,6 +3781,7 @@ private:
     bool _targetsCreated = false;
     bool _stepStarted = false;
     bool _talentRequestSent = false;
+    uint32 _talentResultsBefore = 0;
     bool _characterQueueMarked = false;
     bool _characterQueueReached = false;
     bool _measured = false;
