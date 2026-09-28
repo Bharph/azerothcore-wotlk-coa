@@ -160,13 +160,6 @@ def gh(*args):
 
 
 def ensure_labels(labels):
-    """Create any labels missing from the repo before they are added.
-
-    Lets the automation run against a fresh repository (or one where a managed
-    label was never created) instead of failing with "label not found". Existing
-    labels keep their colour and description; only labels we create get the
-    default colour.
-    """
     if not labels:
         return
 
