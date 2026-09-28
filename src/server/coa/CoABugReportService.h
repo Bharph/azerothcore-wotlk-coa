@@ -197,7 +197,8 @@ namespace CoABugReport
             std::getline(input, status);
             if (!status.empty() && status.back() == '\r')
                 status.pop_back();
-            if (status == "queued" || status == "blocked" || status == "uncertain" || status == "failed")
+            if (status == "queued" || status == "blocked" || status == "uncertain" || status == "failed"
+                || status == "posted")
                 return status;
             uint32_t issue = 0;
             if (status.starts_with("created|") && Number(std::string_view(status).substr(8), issue) && issue)

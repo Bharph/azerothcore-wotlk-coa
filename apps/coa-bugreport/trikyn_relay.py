@@ -4,7 +4,8 @@ CLI_DESCRIPTION = """Deliver in-game reports to Trikyn: a GitHub issue on the Tr
 
 Reuses the hardened delivery journal, file lock and status writer from relay.py; only the delivery
 backend differs (gh + Discord instead of the community Railway service). Dry-run is the default;
---send performs real GitHub issue creation and Discord posting. Never run two instances against one spool.
+--send performs real GitHub issue creation and Discord posting. --enable-feedback routes [FEEDBACK]
+reports to the feedback channel (a card, no issue) instead of rejecting them. Never run two instances against one spool.
 """
 
 import argparse
@@ -22,7 +23,7 @@ import uuid
 import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from relay import DeliveryError, Relay, read_report, worker_lock  # noqa: E402
+from relay import DeliveryError, Relay, read_report, worker_lock, write_status  # noqa: E402
 
 TRACKER = "Bharph/trikyn-live-ops"
 BUG_CHANNEL = "1548181106317066281"
@@ -33,6 +34,7 @@ USER_AGENT = "DiscordBot (https://trikyn.online, 1.0)"
 TYPE_TAG = re.compile(r"^\s*\[(bug|feedback)\]\s*", re.IGNORECASE)
 ISSUE_URL = re.compile(r"/issues/(\d+)")
 BUG_COLOR = 0xD73A4A
+FEEDBACK_COLOR = 0x1D76DB
 SPACER_NAME = "spacer.png"
 
 
@@ -58,6 +60,14 @@ def classify(title: str):
     return "bug", title.strip()
 
 
+def is_feedback(path: Path) -> bool:
+    try:
+        _, _, title, _ = read_report(path)
+    except (ValueError, OSError):
+        return False
+    return classify(title)[0] == "feedback"
+
+
 class TrikynDelivery:
     def __init__(self, token, tracker=TRACKER, bug_channel=BUG_CHANNEL,
                  feedback_channel=FEEDBACK_CHANNEL, labels=DEFAULT_LABELS, project=""):
@@ -73,8 +83,17 @@ class TrikynDelivery:
         if kind == "feedback":
             raise DeliveryError("invalid")
         number = self._open_issue(cleaned, body)
-        self._post_card(self.bug_channel, "In-game bug report", cleaned, body, number)
+        embed = self._embed("In-game bug report", cleaned, body, BUG_COLOR,
+                            f"in-game submission · issue #{number}")
+        if not self._post_embed(self.bug_channel, embed):
+            print(f"warning: Discord card post failed for issue #{number}", flush=True)
         return number
+
+    def deliver_feedback(self, title: str, body: str):
+        _, cleaned = classify(title)
+        embed = self._embed("In-game feedback", cleaned, body, FEEDBACK_COLOR, "in-game submission · feedback")
+        if not self._post_embed(self.feedback_channel, embed):
+            raise DeliveryError("uncertain")
 
     def _open_issue(self, title: str, body: str) -> int:
         command = ["gh", "issue", "create", "--repo", self.tracker, "--title", title, "--body", body]
@@ -111,15 +130,18 @@ class TrikynDelivery:
         except (OSError, subprocess.TimeoutExpired):
             print(f"warning: board add failed for {issue_url}", flush=True)
 
-    def _post_card(self, channel: str, heading: str, title: str, body: str, number: int):
+    @staticmethod
+    def _embed(heading: str, title: str, body: str, color: int, footer: str) -> dict:
         description = body if len(body) <= 3800 else body[:3800] + "\n… (truncated)"
-        embed = {
+        return {
             "title": f"{heading}: {title}"[:256],
             "description": description or "(no details provided)",
-            "color": BUG_COLOR,
-            "footer": {"text": f"in-game submission · issue #{number}"},
+            "color": color,
+            "footer": {"text": footer},
             "image": {"url": f"attachment://{SPACER_NAME}"},
         }
+
+    def _post_embed(self, channel: str, embed: dict) -> bool:
         payload = {"embeds": [embed], "attachments": [{"id": 0, "filename": SPACER_NAME}]}
         boundary = "----trikyn" + uuid.uuid4().hex
         request = urllib.request.Request(f"{DISCORD_API}/channels/{channel}/messages",
@@ -128,9 +150,10 @@ class TrikynDelivery:
         request.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
         request.add_header("User-Agent", USER_AGENT)
         try:
-            urllib.request.urlopen(request, timeout=20)
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return 200 <= response.status < 300
         except (urllib.error.URLError, OSError):
-            print(f"warning: Discord card post failed for issue #{number}", flush=True)
+            return False
 
     @staticmethod
     def _multipart(boundary: str, payload: dict, png: bytes) -> bytes:
@@ -145,6 +168,23 @@ class TrikynDelivery:
         return b"\r\n".join(parts)
 
 
+def process_feedback(root: Path, path: Path, service: TrikynDelivery) -> str:
+    key = path.stem
+    if path.with_suffix(".status").exists():
+        return "posted"
+    try:
+        _, _, title, body = read_report(path)
+    except (ValueError, OSError):
+        write_status(root, key, "failed")
+        return "failed"
+    try:
+        service.deliver_feedback(title, body)
+    except DeliveryError:
+        return "queued"
+    write_status(root, key, "posted")
+    return "posted"
+
+
 def main():
     parser = argparse.ArgumentParser(description=CLI_DESCRIPTION)
     parser.add_argument("--spool", type=Path, required=True)
@@ -154,6 +194,8 @@ def main():
     parser.add_argument("--feedback-channel", default=FEEDBACK_CHANNEL)
     parser.add_argument("--label", action="append")
     parser.add_argument("--project", default="")
+    parser.add_argument("--enable-feedback", action="store_true",
+                        help="Route [FEEDBACK] reports to the feedback channel instead of rejecting them.")
     parser.add_argument("--once", action="store_true", help="Process one pass, then exit.")
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--send", action="store_true", help="Enable real GitHub + Discord delivery.")
@@ -182,7 +224,10 @@ def main():
         try:
             while True:
                 for path in sorted(root.glob("*.report")):
-                    worker.process(path)
+                    if args.enable_feedback and is_feedback(path):
+                        process_feedback(root, path, service)
+                    else:
+                        worker.process(path)
                 if args.once:
                     break
                 time.sleep(5)
