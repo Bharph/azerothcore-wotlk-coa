@@ -23,7 +23,7 @@ import uuid
 import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from relay import DeliveryError, Relay, read_report, worker_lock, write_status  # noqa: E402
+from relay import DeliveryError, Relay, ReportService, read_report, worker_lock, write_status  # noqa: E402
 
 TRACKER = "Bharph/trikyn-live-ops"
 BUG_CHANNEL = "1548181106317066281"
@@ -159,7 +159,9 @@ class TrikynDelivery:
             if error.code in (401, 403, 404):
                 raise DeliveryError("blocked") from None
             if error.code == 429:
-                raise DeliveryError("limited", 900) from None
+                raise DeliveryError("limited", ReportService.retry_delay(error.headers, 900)) from None
+            if 500 <= error.code < 600:
+                raise DeliveryError("uncertain", ReportService.retry_delay(error.headers)) from None
             raise DeliveryError("uncertain") from None
         except (urllib.error.URLError, OSError):
             raise DeliveryError("uncertain") from None
@@ -177,24 +179,54 @@ class TrikynDelivery:
         return b"\r\n".join(parts)
 
 
-def process_feedback(root: Path, path: Path, service: TrikynDelivery) -> str:
+def read_retry_at(path: Path) -> float:
+    try:
+        return float(path.read_text(encoding="ascii").strip())
+    except (OSError, ValueError):
+        return 0.0
+
+
+def write_retry_at(path: Path, when: float) -> None:
+    temporary = path.parent / (path.name + ".tmp")
+    with temporary.open("w", encoding="ascii") as stream:
+        stream.write(f"{when:.3f}\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+
+
+def clear_retry(path: Path) -> None:
+    try:
+        path.unlink()
+    except OSError:
+        pass
+
+
+def process_feedback(root: Path, path: Path, service: TrikynDelivery, clock=time.time) -> str:
     key = path.stem
     if path.with_suffix(".status").exists():
         return "posted"
+    schedule = path.with_suffix(".retry")
+    if read_retry_at(schedule) > clock():
+        return "queued"
     try:
         _, _, title, body = read_report(path)
     except (ValueError, OSError):
+        clear_retry(schedule)
         write_status(root, key, "failed")
         return "failed"
     try:
         service.deliver_feedback(title, body)
     except DeliveryError as error:
         if error.kind in ("blocked", "invalid"):
+            clear_retry(schedule)
             write_status(root, key, "failed")
             print(f"feedback {key}: terminal Discord error ({error.kind}); marked failed", flush=True)
             return "failed"
-        print(f"feedback {key}: transient Discord error ({error.kind}); will retry", flush=True)
+        write_retry_at(schedule, clock() + error.delay)
+        print(f"feedback {key}: transient Discord error ({error.kind}); retry in {error.delay}s", flush=True)
         return "queued"
+    clear_retry(schedule)
     write_status(root, key, "posted")
     return "posted"
 
