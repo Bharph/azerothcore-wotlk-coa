@@ -1439,7 +1439,7 @@ public:
                 Field* fields = result->Fetch();
                 uint32 const classMask = fields[0].Get<uint32>();
                 uint32 const spellId = fields[1].Get<uint32>();
-                if (!spellId || !(classMask & 0xFFFFF000u))   // a row the serialized classes can learn
+                if (!spellId || !(classMask & 0xFFFFF800u))   // a row the serialized classes (12..32, bit 11..31) can learn
                     continue;
                 creationSpells.push_back(spellId);
             } while (result->NextRow());
