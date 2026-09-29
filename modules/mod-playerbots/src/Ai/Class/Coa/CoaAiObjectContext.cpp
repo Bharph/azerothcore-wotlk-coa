@@ -1697,7 +1697,41 @@ public:
     }
 };
 
-// Takes the current target back when it attacks someone else.
+// An enemy hitting another player of the tank's group, within taunt reach: the one on a healer first,
+// then the one whose victim is the lowest. Tanks only taunted their own target when it turned away, and
+// left alone the mobs that never were their target: 0.25 to 0.86 taunts a fight, none in 39 to 79% of
+// fights, while 80% of the deaths were damage dealers and healers (NUC dungeon arenas, 28/09).
+Unit* LooseEnemy(PlayerbotAI* botAI, Player* bot)
+{
+    Group* group = bot->GetGroup();
+    if (!group)
+        return nullptr;
+    Unit* best = nullptr;
+    int32 bestScore = INT32_MIN;
+    for (ObjectGuid const& guid : botAI->GetAiObjectContext()->GetValue<GuidVector>("attackers")->Get())
+    {
+        Unit* enemy = botAI->GetUnit(guid);
+        if (!enemy || !enemy->IsAlive() || enemy->IsPlayer())
+            continue;
+        Unit* victim = enemy->GetVictim();
+        Player* victimPlayer = victim ? victim->ToPlayer() : nullptr;
+        if (!victimPlayer || victimPlayer == bot || victimPlayer->GetGroup() != group)
+            continue;
+        if (bot->GetDistance(enemy) > 30.0f || !bot->IsWithinLOSInMap(enemy))
+            continue;
+        int32 score = 100 - int32(victimPlayer->GetHealthPct());
+        if (GetCoaRole(victimPlayer) == CoaRole::Heal)
+            score += 100;
+        if (score > bestScore)
+        {
+            best = enemy;
+            bestScore = score;
+        }
+    }
+    return best;
+}
+
+// Takes the current target back when it attacks someone else, or else an enemy on another member.
 class CoaTauntAction : public Action
 {
 public:
@@ -1706,22 +1740,42 @@ public:
     bool Execute(Event /*event*/) override
     {
         Unit* target = AI_VALUE(Unit*, "current target");
+        bool const ownTurned = target && target->IsAlive() && target->GetVictim() && target->GetVictim() != bot;
+        if (!ownTurned)
+            target = LooseEnemy(botAI, bot);
         if (!target || !target->IsAlive())
             return false;
 
         SpellInfo const* taunt = CastFirst(botAI, bot,
             KnownAbilities(bot, [](uint16 kind) { return (kind & KIND_TAUNT) != 0; }), target, USAGE_TAUNT);
         if (taunt)
+        {
             CoaTelemetryNoteTaunt(bot);
+            // Taken back: it becomes the target the tank now holds.
+            if (!ownTurned)
+                context->GetValue<Unit*>("current target")->Set(target);
+        }
         return RecordUsage(USAGE_TAUNT, taunt);
     }
 
     bool isUseful() override
     {
+        if (!ClassHas(bot, KIND_TAUNT) || !HasReadyAbility(botAI, bot, [](uint16 kind) { return (kind & KIND_TAUNT) != 0; }))
+            return false;
         Unit* target = AI_VALUE(Unit*, "current target");
-        return target && target->IsAlive() && target->GetVictim() && target->GetVictim() != bot &&
-               ClassHas(bot, KIND_TAUNT) && HasReadyAbility(botAI, bot,[](uint16 kind) { return (kind & KIND_TAUNT) != 0; });
+        if (target && target->IsAlive() && target->GetVictim() && target->GetVictim() != bot)
+            return true;
+        return LooseEnemy(botAI, bot) != nullptr;
     }
+};
+
+// For a tank: an enemy is hitting another player of its group.
+class CoaLooseEnemyTrigger : public Trigger
+{
+public:
+    CoaLooseEnemyTrigger(PlayerbotAI* botAI) : Trigger(botAI, "coa loose enemy", 1) {}
+
+    bool IsActive() override { return bot->IsInCombat() && LooseEnemy(botAI, bot) != nullptr; }
 };
 
 // When hurt: a defensive cooldown, or failing that a heal on itself.
@@ -2095,6 +2149,10 @@ public:
     {
         CoaCombatStrategy::InitTriggers(triggers);
         triggers.push_back(new TriggerNode("lose aggro", { NextAction("coa taunt", ACTION_HIGH + 5) }));
+        // Above the spec rotations, whose attacks reach 88: at ACTION_HIGH + 4 it never fired (the NUC
+        // arenas showed no change in taunts, 29/09). Only the rotation's own "lose aggro" taunt (94) and
+        // its buffs (95) come first.
+        triggers.push_back(new TriggerNode("coa loose enemy", { NextAction("coa taunt", 93.0f) }));
         triggers.push_back(new TriggerNode("light aoe", { NextAction("coa aoe", ACTION_HIGH + 3) }));
         triggers.push_back(new TriggerNode("medium health", { NextAction("coa defensive", ACTION_HIGH + 6) }));
     }
@@ -2554,6 +2612,7 @@ public:
         creators["coa far from tank"] = &CoaTriggerFactoryInternal::coa_far_from_tank;
         creators["coa out of healing reach"] = &CoaTriggerFactoryInternal::coa_out_of_healing_reach;
         creators["coa healer low mana"] = &CoaTriggerFactoryInternal::coa_healer_low_mana;
+        creators["coa loose enemy"] = &CoaTriggerFactoryInternal::coa_loose_enemy;
     }
 
 private:
@@ -2567,6 +2626,7 @@ private:
     static Trigger* coa_far_from_tank(PlayerbotAI* botAI) { return new CoaFarFromTankTrigger(botAI); }
     static Trigger* coa_out_of_healing_reach(PlayerbotAI* botAI) { return new CoaOutOfHealingReachTrigger(botAI); }
     static Trigger* coa_healer_low_mana(PlayerbotAI* botAI) { return new CoaLowManaTrigger(botAI); }
+    static Trigger* coa_loose_enemy(PlayerbotAI* botAI) { return new CoaLooseEnemyTrigger(botAI); }
 };
 
 }  // namespace
