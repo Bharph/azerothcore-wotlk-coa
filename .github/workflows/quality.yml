@@ -43,10 +43,17 @@ jobs:
 
   linux-build:
     name: linux-build
+    # A label change must not start a 40-60 minute compile, and a newer push cancels the older run.
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+    concurrency:
+      group: linux-build-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
       COMPILER: clang
+      # acore.sh's ccache integration honours CCACHE_DIR; keep it on the path the cache step saves.
+      CCACHE_DIR: /home/runner/.ccache
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
