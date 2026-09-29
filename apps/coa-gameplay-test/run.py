@@ -133,6 +133,7 @@ ACTIONS = {
     'money': ({'actor', 'copper'}, {'actor', 'copper'}),
     'set_aura': ({'actor', 'spell', 'stacks'}, {'actor', 'spell', 'stacks', 'pet'}),
     'cancel_aura': ({'actor', 'spell'}, {'actor', 'spell'}),
+    'cancel_mount': ({'actor'}, {'actor'}),
     'cast': ({'actor', 'spell'}, {'actor', 'spell', 'target', 'destination', 'target_pet'}),
     'attack': ({'actor', 'target'}, {'actor', 'target', 'pet'}),
     'pvp': ({'actor', 'enabled'}, {'actor', 'enabled'}),
