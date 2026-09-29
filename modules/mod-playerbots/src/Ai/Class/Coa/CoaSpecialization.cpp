@@ -12,6 +12,8 @@
 #include "Config.h"
 #include "ScriptMgr.h"
 
+#include "BattlegroundMgr.h"
+#include "LFGMgr.h"
 #include "Group.h"
 #include "GroupMgr.h"
 #include "ItemTemplate.h"
@@ -643,6 +645,29 @@ bool PrepareCoaRecruit(Player* master, Player* chosen, CoaRole role, bool chosen
     return true;
 }
 
+void CoaLeaveBattlegroundQueues(Player* bot)
+{
+    if (!bot || bot->InBattleground())
+        return;
+    for (uint8 slot = 0; slot < PLAYER_MAX_BATTLEGROUND_QUEUES; ++slot)
+    {
+        BattlegroundQueueTypeId const queue = bot->GetBattlegroundQueueTypeId(slot);
+        if (queue == BATTLEGROUND_QUEUE_NONE)
+            continue;
+        bot->RemoveBattlegroundQueueId(queue);
+        sBattlegroundMgr->GetBattlegroundQueue(queue).RemovePlayer(bot->GetGUID(), true);
+    }
+    // And the Dungeon Finder queue it may have joined alone: the group tags as a whole.
+    if (!bot->GetGroup() || !bot->GetGroup()->isLFGGroup())
+        sLFGMgr->LeaveAllLfgQueues(bot->GetGUID(), false);
+    if (PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot))
+    {
+        botAI->GetAiObjectContext()->GetValue<uint32>("bg type")->Set(0);
+        botAI->GetAiObjectContext()->GetValue<uint32>("bg role")->Set(0);
+        botAI->GetAiObjectContext()->GetValue<uint32>("arena type")->Set(0);
+    }
+}
+
 bool RecruitCoaBot(Player* master, CoaRole role, std::string& message, uint8 classId)
 {
     Group* group = master->GetGroup();
@@ -688,6 +713,7 @@ bool RecruitCoaBot(Player* master, CoaRole role, std::string& message, uint8 cla
         message = "Could not add " + chosen->GetName() + " to the group.";
         return false;
     }
+    CoaLeaveBattlegroundQueues(chosen);
 
     // After joining the group, so the bot may enter the master's dungeon instance.
     chosen->TeleportTo(master->GetMapId(), master->GetPositionX(), master->GetPositionY(), master->GetPositionZ(),
