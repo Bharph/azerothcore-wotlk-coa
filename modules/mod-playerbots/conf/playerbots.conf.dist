@@ -1937,22 +1937,26 @@ AiPlayerbot.RandomBotAutoJoinBG = 0
 # AiPlayerbot.RandomBotAutoJoinAVBrackets = 0,1,2,3
 # AiPlayerbot.RandomBotAutoJoinEYBrackets = 0,1,2
 # AiPlayerbot.RandomBotAutoJoinICBrackets = 0,1
-AiPlayerbot.RandomBotAutoJoinWSBrackets = 7
-AiPlayerbot.RandomBotAutoJoinABBrackets = 6
-AiPlayerbot.RandomBotAutoJoinAVBrackets = 3
-AiPlayerbot.RandomBotAutoJoinEYBrackets = 2
+# Conquest of Azeroth stops at level 60: the upstream defaults (level 80 brackets) never filled a battle.
+# CoA's PvpDifficulty.dbc, not the list above: Warsong Gulch, Arathi Basin and Eye of the Storm all start at
+# level 10 (bracket 4 = 50-59, 5 = 60-69), Alterac Valley bracket 0 = 60, Isle of Conquest starts at 71.
+# Add lower brackets (e.g. WS 1,2,3,4) for levelling bots; Eye of the Storm needs a count above 0.
+AiPlayerbot.RandomBotAutoJoinWSBrackets = 5
+AiPlayerbot.RandomBotAutoJoinABBrackets = 5
+AiPlayerbot.RandomBotAutoJoinAVBrackets = 0
+AiPlayerbot.RandomBotAutoJoinEYBrackets = 5
 AiPlayerbot.RandomBotAutoJoinICBrackets = 1
 
 # Battlegrounds battles count (per bracket):
 AiPlayerbot.RandomBotAutoJoinBGWSCount = 1
 AiPlayerbot.RandomBotAutoJoinBGABCount = 1
 AiPlayerbot.RandomBotAutoJoinBGAVCount = 0
-AiPlayerbot.RandomBotAutoJoinBGEYCount = 1
+AiPlayerbot.RandomBotAutoJoinBGEYCount = 0
 AiPlayerbot.RandomBotAutoJoinBGICCount = 0
 
 # Arena bracket (single bracket only):
 # Custom code changes are required for lower-level arena brackets to function properly.
-AiPlayerbot.RandomBotAutoJoinArenaBracket = 14
+AiPlayerbot.RandomBotAutoJoinArenaBracket = 10
 
 # Arena battles count:
 AiPlayerbot.RandomBotAutoJoinBGRatedArena2v2Count = 0
