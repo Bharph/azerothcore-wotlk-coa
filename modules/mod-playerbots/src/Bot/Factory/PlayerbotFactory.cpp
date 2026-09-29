@@ -42,6 +42,12 @@
 #include "Trainer.h"
 #include "World.h"
 #include "AscensionCustomClassData.h"
+#include "AscensionSpellProgressionData.h"
+#include "AscensionCoATalentData.h"
+#include "AscensionLiveBaselineData.h"
+#include "AscensionTaughtAbilityData.h"
+#include <mutex>
+#include <unordered_map>
 #include "AscensionSpecialization.h"
 #include <array>
 #include <unordered_set>
@@ -1659,6 +1665,172 @@ void PlayerbotFactory::ClearEverything()
     // bot->SaveToDB(false, false);
 }
 
+namespace
+{
+// The lowest level each table grants a spell to a CoA class at: class spells (and their legacy,
+// unresolved and obsolete lists), the rank table, Character Advancement entries (automatic ones
+// included), taught abilities. Proficiencies and the live baseline have no level: 1. Built once.
+std::unordered_map<uint64, uint32> const& CoaTableGrantLevels()
+{
+    static std::unordered_map<uint64, uint32> const levels = []
+    {
+        std::unordered_map<uint64, uint32> out;
+        auto note = [&out](uint32 classId, uint32 spellId, uint32 level)
+        {
+            if (!spellId)
+                return;
+            uint64 const key = (uint64(classId) << 32) | spellId;
+            auto found = out.find(key);
+            if (found == out.end() || found->second > level)
+                out[key] = level;
+        };
+        for (auto const& e : AscensionCompatData::ClassSpells)
+            note(e.ClassId, e.SpellId, e.RequiredLevel);
+        for (auto const& e : AscensionCompatData::LegacyGeneratedClassSpells)
+            note(e.ClassId, e.SpellId, e.RequiredLevel);
+        for (auto const& e : AscensionCompatData::UnresolvedTrainerSpells)
+            note(e.ClassId, e.SpellId, e.RequiredLevel);
+        for (auto const& e : AscensionCompatData::ObsoleteClassSpells)
+            note(e.ClassId, e.SpellId, e.RequiredLevel);
+        for (auto const& e : AscensionProgression::Ranks)
+            note(e.ClassId, e.SpellId, e.RequiredLevel);
+        for (auto const& e : AscensionCompatData::CoATalentEntries)
+            for (uint32 spellId : e.SpellIds)
+                note(e.ClassId, spellId, e.RequiredLevel);
+        for (auto const& e : AscensionCompatData::TaughtAbilities)
+            note(e.ClassId, e.SpellId, e.RequiredLevel);
+        for (auto const& e : AscensionCompatData::ClassProficiencies)
+            note(e.ClassId, e.SpellId, 1);
+        for (auto const& e : AscensionLiveBaseline::Spells)
+            note(e.ClassId, e.SpellId, 1);
+        return out;
+    }();
+    return levels;
+}
+
+// The same from the class trainers that teach that class, built once per class: the level a trainer asks.
+std::unordered_map<uint32, uint32> const& CoaTrainerGrantLevels(Player* bot)
+{
+    static std::unordered_map<uint8, std::unordered_map<uint32, uint32>> perClass;
+    static std::mutex lock;
+    std::lock_guard<std::mutex> guard(lock);
+    auto [entry, added] = perClass.try_emplace(bot->getClass());
+    if (!added)
+        return entry->second;
+    std::unordered_map<uint32, uint32>& out = entry->second;
+    CreatureTemplateContainer const* templates = sObjectMgr->GetCreatureTemplates();
+    for (auto const& [creatureId, creature] : *templates)
+    {
+        Trainer::Trainer* trainer = sObjectMgr->GetTrainer(creatureId);
+        if (!trainer || trainer->GetTrainerType() != Trainer::Type::Class || !trainer->IsTrainerValidForPlayer(bot))
+            continue;
+        for (Trainer::Spell const& spell : trainer->GetSpells())
+        {
+            uint32 taught = spell.SpellId;
+            // A castable trainer spell teaches through its learn effect: the spell learnt is what the bot holds.
+            if (spell.IsCastable())
+                if (SpellInfo const* info = sSpellMgr->GetSpellInfo(spell.SpellId))
+                    for (SpellEffectInfo const& effect : info->Effects)
+                        if (effect.Effect == SPELL_EFFECT_LEARN_SPELL && effect.TriggerSpell)
+                            taught = effect.TriggerSpell;
+            auto found = out.find(taught);
+            if (found == out.end() || found->second > spell.ReqLevel)
+                out[taught] = spell.ReqLevel;
+        }
+    }
+    return out;
+}
+// The spells class quests reward (Summon Succubus, Berserker Stance, the totems...), learnt by random
+// bots on level up (AutoLearnQuestSpells) once they reach the quest's level: the quest's minimum level,
+// for the bot's class and race, built once per class and race.
+std::unordered_map<uint32, uint32> const& CoaQuestGrantLevels(Player* bot)
+{
+    static std::unordered_map<uint32, std::unordered_map<uint32, uint32>> perClassRace;
+    static std::mutex lock;
+    std::lock_guard<std::mutex> guard(lock);
+    auto [entry, added] = perClassRace.try_emplace((uint32(bot->getClass()) << 8) | bot->getRace());
+    if (!added)
+        return entry->second;
+    std::unordered_map<uint32, uint32>& out = entry->second;
+    for (auto const& [questId, quest] : sObjectMgr->GetQuestTemplates())
+    {
+        if (!quest->GetRequiredClasses() || quest->IsRepeatable() || !bot->SatisfyQuestClass(quest, false) ||
+            !bot->SatisfyQuestRace(quest, false))
+            continue;
+        uint32 const level = uint32(std::max<int32>(quest->GetMinLevel(), 1));
+        auto note = [&out, level](uint32 spellId)
+        {
+            if (!spellId)
+                return;
+            auto found = out.find(spellId);
+            if (found == out.end() || found->second > level)
+                out[spellId] = level;
+        };
+        note(quest->GetRewSpell());
+        if (int32 const cast = quest->GetRewSpellCast())
+            if (SpellInfo const* info = sSpellMgr->GetSpellInfo(cast))
+                for (SpellEffectInfo const& effect : info->Effects)
+                    if (effect.Effect == SPELL_EFFECT_LEARN_SPELL)
+                        note(effect.TriggerSpell);
+    }
+    return out;
+}
+}  // namespace
+
+uint32 PlayerbotFactory::CoaGrantLevel(Player* bot, uint32 spellId)
+{
+    uint32 level = NoCoaGrantLevel;
+    auto const& tables = CoaTableGrantLevels();
+    auto found = tables.find((uint64(bot->getClass()) << 32) | spellId);
+    if (found != tables.end())
+        level = found->second;
+    auto const& trainers = CoaTrainerGrantLevels(bot);
+    auto taught = trainers.find(spellId);
+    if (taught != trainers.end())
+        level = std::min(level, taught->second);
+    auto const& quests = CoaQuestGrantLevels(bot);
+    auto rewarded = quests.find(spellId);
+    if (rewarded != quests.end())
+        level = std::min(level, rewarded->second);
+    // A proficiency a talent brings comes with the talent.
+    for (auto const& e : AscensionCompatData::TalentProficiencies)
+        if (e.ClassId == bot->getClass() && e.ProficiencySpellId == spellId && bot->HasSpell(e.TalentSpellId))
+            level = std::min<uint32>(level, 1);
+    return level;
+}
+
+uint32 PlayerbotFactory::DropCoaRanksAbove(Player* bot, uint32 level)
+{
+    if (!IsAscensionCustomClassId(bot->getClass()))
+        return 0;
+    // Every spell a player of this class gets at a higher level only - class spells, trainer spells,
+    // ranks, Character Advancement abilities, class quest rewards, proficiencies - goes: the core and the trainers grant on
+    // the way up and never take back, and a bot brought down in level kept its old toolkit (410 of 600
+    // dev bots on 28/09: Summon Succubus at level 1, Plate Mail on level 2 casters, Lich Form at 2).
+    // A spell no table knows (racials, professions, items) stays.
+    std::vector<uint32> above;
+    for (auto const& [spellId, spell] : bot->GetSpellMap())
+    {
+        if (spell->State == PLAYERSPELL_REMOVED)
+            continue;
+        uint32 const grant = CoaGrantLevel(bot, spellId);
+        if (grant != NoCoaGrantLevel && grant > level)
+            above.push_back(spellId);
+    }
+    // Highest first: each removal gives the rank below back its place in the spellbook.
+    std::sort(above.begin(), above.end(), [bot](uint32 a, uint32 b) { return CoaGrantLevel(bot, a) > CoaGrantLevel(bot, b); });
+    for (uint32 spellId : above)
+        bot->removeSpell(spellId, SPEC_MASK_ALL, false);
+    // The higher ranks of an ability taken away stay otherwise.
+    for (AscensionProgression::Rank const& rank : AscensionProgression::Ranks)
+        if (rank.ClassId == bot->getClass() && bot->HasSpell(rank.SpellId) && !bot->HasSpell(rank.FirstSpellId))
+        {
+            bot->removeSpell(rank.SpellId, SPEC_MASK_ALL, false);
+            above.push_back(rank.SpellId);
+        }
+    return uint32(above.size());
+}
+
 void PlayerbotFactory::ClearSpells()
 {
     // Conquest of Azeroth classes (12 and above) get their abilities from mod-ascension-compat,
@@ -1666,7 +1838,13 @@ void PlayerbotFactory::ClearSpells()
     // leaves the bot with nothing to cast until its next login, since InitClassSpells only
     // knows the vanilla classes.
     if (IsAscensionCustomClassId(bot->getClass()))
+    {
+        // The core grants CoA ranks on the way up only: a bot rebuilt at a lower level kept the ranks
+        // of the level it had (a level 31 Stormbringer casting the level 58 Forked Lightning, PvP
+        // bench 27/09). Every recruit brought down to its master's level carried them.
+        DropCoaRanksAbove(bot, level);
         return;
+    }
 
     std::list<uint32> spells;
     for (PlayerSpellMap::iterator itr = bot->GetSpellMap().begin(); itr != bot->GetSpellMap().end(); ++itr)
