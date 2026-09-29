@@ -385,6 +385,16 @@ void Classify(SpellInfo const* info, CoaAbility& ability, uint8 depth = 0)
     if (!depth && !sPlayerbotAIConfig.coaHealsExcluded.empty() &&
         sPlayerbotAIConfig.coaHealsExcluded.count(info->SpellName[LOCALE_enUS]))
         ability.kind &= ~(KIND_HEAL | KIND_GROUP_HEAL | KIND_HOT);
+
+    // A spell that puts its caster in a form, or stuns or pacifies it, is never a buff to keep up, whatever
+    // its other effects say. Moon Gaze (Bloodmage) is Cursed Form, a dummy and a stun on the caster for five
+    // minutes: its dummy made it a buff, and bots recast it the moment it ran out and stood still, healers
+    // included (jealous-sound/azerothcore-wotlk-coa#4836, #5143, #5196, #5360; still seen on 29/09).
+    for (SpellEffectInfo const& effect : info->Effects)
+        if (effect.IsAura() && effect.TargetA.GetTarget() == TARGET_UNIT_CASTER &&
+            (effect.ApplyAuraName == SPELL_AURA_MOD_SHAPESHIFT || effect.ApplyAuraName == SPELL_AURA_MOD_STUN ||
+             effect.ApplyAuraName == SPELL_AURA_MOD_PACIFY || effect.ApplyAuraName == SPELL_AURA_MOD_PACIFY_SILENCE))
+            ability.kind &= ~KIND_BUFF;
 }
 
 std::unordered_map<uint8, ClassKit> const& ClassAbilities()
