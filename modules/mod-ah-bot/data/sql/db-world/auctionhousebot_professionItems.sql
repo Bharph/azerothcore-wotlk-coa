@@ -26,7 +26,7 @@ SET time_zone = "+00:00";
 -- Table structure for table `auctionhousebot_professionItems`
 --
 
-CREATE TABLE `auctionhousebot_professionItems` (
+CREATE TABLE IF NOT EXISTS `auctionhousebot_professionItems` (
   `Entry` int NOT NULL,
   `Item` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -34,6 +34,8 @@ CREATE TABLE `auctionhousebot_professionItems` (
 --
 -- Dumping data for table `auctionhousebot_professionItems`
 --
+
+DELETE FROM `auctionhousebot_professionItems`;
 
 INSERT INTO `auctionhousebot_professionItems` (`Entry`, `Item`) VALUES
 (1, 2318),
