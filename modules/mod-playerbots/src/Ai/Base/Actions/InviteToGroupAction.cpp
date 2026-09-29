@@ -287,6 +287,9 @@ bool JoinGroupAction::Execute(Event event)
 bool LfgAction::Execute(Event event)
 {
     Player* requester = event.getOwner() ? event.getOwner() : GetMaster();
+    // An "lfg" event without its sender, on a bot without a master: nobody to join (crash, 28/09).
+    if (!requester)
+        return false;
 
     if (bot->InBattleground())
         return false;

@@ -12,6 +12,8 @@
 #include "Config.h"
 #include "ScriptMgr.h"
 
+#include "BattlegroundMgr.h"
+#include "LFGMgr.h"
 #include "Group.h"
 #include "GroupMgr.h"
 #include "ItemTemplate.h"
@@ -28,6 +30,8 @@
 #include "WorldSession.h"
 #include "WorldSessionMgr.h"
 #include "AscensionSpecialization.h"
+#include "AscensionCoATalentData.h"
+#include "AscensionSpellProgressionData.h"
 
 #include <algorithm>
 #include <cctype>
@@ -376,11 +380,25 @@ uint32 ApplyCoaTalents(Player* bot)
     if (!specializationId)
         return 0;
 
-    // Rank each entry should hold at the bot's level: the build's picks up to that level.
+    auto const entryOf = [](uint32 entryId) -> AscensionCompatData::CoATalentEntry const*
+    {
+        for (AscensionCompatData::CoATalentEntry const& entry : AscensionCompatData::CoATalentEntries)
+            if (entry.EntryId == entryId)
+                return &entry;
+        return nullptr;
+    };
+
+    // Rank each entry should hold at the bot's level: the build's picks up to that level, never an entry
+    // the Character Advancement does not offer yet at that level. The build lists some end-game
+    // abilities early, and the core does not check the level when a rank is set: level 10 bots cast
+    // Brutal Shot (spell level 59) for 2000 on a 548 health player (PvP bench, 28/09).
     std::vector<std::pair<uint32, uint8>> wanted;
     for (CoaLevelBuildData::Pick const& pick : CoaLevelBuildData::Picks)
     {
         if (pick.ClassId != bot->getClass() || pick.SpecId != specializationId || pick.Level > bot->GetLevel())
+            continue;
+        AscensionCompatData::CoATalentEntry const* entry = entryOf(pick.EntryId);
+        if (!entry || entry->RequiredLevel > bot->GetLevel())
             continue;
 
         auto itr = std::find_if(wanted.begin(), wanted.end(),
@@ -391,14 +409,39 @@ uint32 ApplyCoaTalents(Player* bot)
             itr->second = pick.Rank;
     }
 
+    // Down first: a bot brought down in level kept the entries of the level it had, the core only ever
+    // raises them (Fiery Judgement, spell level 31, on a level 3 Witch Hunter). Every entry of its class
+    // above what the build holds at this level goes back down, to 0 when the build has none of it yet.
+    uint32 lowered = 0;
+    for (AscensionCompatData::CoATalentEntry const& entry : AscensionCompatData::CoATalentEntries)
+    {
+        if (entry.ClassId != bot->getClass())
+            continue;
+        auto itr = std::find_if(wanted.begin(), wanted.end(),
+            [&entry](std::pair<uint32, uint8> const& w) { return w.first == entry.EntryId; });
+        uint32 const allowed = itr == wanted.end() ? 0 : itr->second;
+        if (GetAscensionTalentRank(bot, entry.EntryId) > allowed && SetAscensionTalentRank(bot, entry.EntryId, allowed))
+            ++lowered;
+    }
+    // The higher ranks of an ability taken away stay otherwise: the rank table learns rank 2+ from the
+    // first one, and nothing removes them with it.
+    uint32 orphans = 0;
+    if (lowered)
+        for (AscensionProgression::Rank const& rank : AscensionProgression::Ranks)
+            if (rank.ClassId == bot->getClass() && bot->HasSpell(rank.SpellId) && !bot->HasSpell(rank.FirstSpellId))
+            {
+                bot->removeSpell(rank.SpellId, SPEC_MASK_ALL, false);
+                ++orphans;
+            }
+
     uint32 raised = 0;
     for (auto const& [entryId, rank] : wanted)
         if (GetAscensionTalentRank(bot, entryId) < rank && SetAscensionTalentRank(bot, entryId, rank))
             ++raised;
 
-    if (raised)
-        LOG_INFO("playerbots", "coa: {} (class {}, level {}, specialization {}) raised {} talent entries",
-                 bot->GetName(), bot->getClass(), bot->GetLevel(), specializationId, raised);
+    if (raised || lowered)
+        LOG_INFO("playerbots", "coa: {} (class {}, level {}, specialization {}) raised {}, lowered {} talent entries ({} orphan ranks)",
+                 bot->GetName(), bot->getClass(), bot->GetLevel(), specializationId, raised, lowered, orphans);
     return raised;
 }
 
@@ -561,6 +604,8 @@ bool PrepareCoaRecruit(Player* master, Player* chosen, CoaRole role, bool chosen
         uint32 const rebuilt = GetAscensionActiveSpecialization(chosen);
         chosenFits = rebuilt && !IsExcludedSpecialization(rebuilt) && GetCoaRole(chosen) == role;
     }
+    // Rebuilt or not, no spell rank above the level it plays at.
+    PlayerbotFactory::DropCoaRanksAbove(chosen, chosen->GetLevel());
 
     if (!chosenFits)
     {
@@ -598,6 +643,29 @@ bool PrepareCoaRecruit(Player* master, Player* chosen, CoaRole role, bool chosen
         DropThreatStances(chosen);
 
     return true;
+}
+
+void CoaLeaveBattlegroundQueues(Player* bot)
+{
+    if (!bot || bot->InBattleground())
+        return;
+    for (uint8 slot = 0; slot < PLAYER_MAX_BATTLEGROUND_QUEUES; ++slot)
+    {
+        BattlegroundQueueTypeId const queue = bot->GetBattlegroundQueueTypeId(slot);
+        if (queue == BATTLEGROUND_QUEUE_NONE)
+            continue;
+        bot->RemoveBattlegroundQueueId(queue);
+        sBattlegroundMgr->GetBattlegroundQueue(queue).RemovePlayer(bot->GetGUID(), true);
+    }
+    // And the Dungeon Finder queue it may have joined alone: the group tags as a whole.
+    if (!bot->GetGroup() || !bot->GetGroup()->isLFGGroup())
+        sLFGMgr->LeaveAllLfgQueues(bot->GetGUID(), false);
+    if (PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot))
+    {
+        botAI->GetAiObjectContext()->GetValue<uint32>("bg type")->Set(0);
+        botAI->GetAiObjectContext()->GetValue<uint32>("bg role")->Set(0);
+        botAI->GetAiObjectContext()->GetValue<uint32>("arena type")->Set(0);
+    }
 }
 
 bool RecruitCoaBot(Player* master, CoaRole role, std::string& message, uint8 classId)
@@ -645,6 +713,7 @@ bool RecruitCoaBot(Player* master, CoaRole role, std::string& message, uint8 cla
         message = "Could not add " + chosen->GetName() + " to the group.";
         return false;
     }
+    CoaLeaveBattlegroundQueues(chosen);
 
     // After joining the group, so the bot may enter the master's dungeon instance.
     chosen->TeleportTo(master->GetMapId(), master->GetPositionX(), master->GetPositionY(), master->GetPositionZ(),

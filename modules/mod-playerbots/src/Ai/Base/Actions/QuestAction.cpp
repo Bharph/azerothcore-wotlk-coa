@@ -4,6 +4,7 @@
  * or (at your option) any later version.
  */
 
+#include "CoaQuestMenu.h"
 #include "QuestAction.h"
 #include "BroadcastHelper.h"
 #include "Chat.h"
@@ -196,6 +197,11 @@ bool QuestAction::ProcessQuests(WorldObject* questGiver)
         bot->SetFacingToObject(questGiver);
 
     bot->SetTarget(guid);
+    if (!CoaQuestMenuFits(guid))
+    {
+        botAI->TellError("Too many quests on this board");
+        return false;
+    }
     bot->PrepareQuestMenu(guid);
 
     QuestMenu& questMenu = bot->PlayerTalkClass->GetQuestMenu();

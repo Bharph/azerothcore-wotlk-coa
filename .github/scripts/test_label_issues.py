@@ -70,7 +70,7 @@ class LabelIssuesTests(unittest.TestCase):
 
     def test_witch_hunter_label_is_added_without_removing_existing_labels(self):
         issue = {"body": "Class ID: 15", "labels": [{"name": "Bug"}]}
-        with patch.object(label_issues, "gh") as gh:
+        with patch.object(label_issues, "ensure_labels"), patch.object(label_issues, "gh") as gh:
             label_issues.update_issue("42", issue, label_issues.determine_labels(issue))
         gh.assert_called_once_with(
             "issue", "edit", "42", "--add-label", "Witch Hunter", "--repo", "owner/repo",
@@ -126,7 +126,7 @@ class LabelIssuesTests(unittest.TestCase):
 
     def test_existing_labels_are_preserved(self):
         issue = {"labels": [{"name": name} for name in ("Tested", "DB", "human-label")]}
-        with patch.object(label_issues, "gh") as gh:
+        with patch.object(label_issues, "ensure_labels"), patch.object(label_issues, "gh") as gh:
             label_issues.update_issue("42", issue, ["Bug", "CPP Edit", "Not Tested"])
         gh.assert_called_once_with(
             "issue", "edit", "42", "--add-label", "Bug,CPP Edit", "--repo", "owner/repo",
@@ -156,7 +156,7 @@ class LabelIssuesTests(unittest.TestCase):
             "labels": [],
         }
         with patch.object(label_issues, "get_issue", return_value=issue):
-            with patch.object(label_issues, "gh") as gh:
+            with patch.object(label_issues, "ensure_labels"), patch.object(label_issues, "gh") as gh:
                 label_issues.label_issue("4212")
         gh.assert_called_once_with(
             "pr", "edit", "4212", "--add-label", "Bloodmage", "--repo", "owner/repo",
@@ -175,7 +175,7 @@ class LabelIssuesTests(unittest.TestCase):
             "pull_request": {"url": "fixture"},
             "labels": [{"name": name} for name in ("DB", "Tested", "human-label")],
         }
-        with patch.object(label_issues, "gh") as gh:
+        with patch.object(label_issues, "ensure_labels"), patch.object(label_issues, "gh") as gh:
             label_issues.update_issue("42", issue, ["Bloodmage", "Not Tested"])
         gh.assert_called_once_with(
             "pr", "edit", "42", "--add-label", "Bloodmage", "--repo", "owner/repo",
@@ -215,7 +215,8 @@ class LabelIssuesTests(unittest.TestCase):
         responses = ["42\n43", json.dumps(issue), "", json.dumps(pr), ""]
         with patch.dict(os.environ, {"ISSUE_NUMBER": "", "DRY_RUN": "false"}):
             with patch.object(sys, "argv", ["label_issues.py", "--all"]):
-                with patch.object(label_issues, "gh", side_effect=responses) as gh:
+                with patch.object(label_issues, "ensure_labels"), \
+                        patch.object(label_issues, "gh", side_effect=responses) as gh:
                     label_issues.main()
         self.assertEqual(gh.call_args_list, [
             call("api", "--paginate", "repos/owner/repo/issues?state=all&per_page=100", "--jq", ".[].number"),
@@ -224,6 +225,23 @@ class LabelIssuesTests(unittest.TestCase):
             call("api", "repos/owner/repo/issues/43"),
             call("pr", "edit", "43", "--add-label", "Bloodmage", "--repo", "owner/repo"),
         ])
+
+    def test_ensure_labels_creates_only_missing(self):
+        listed = "Bug\tSomething isn't working\t#d73a4a\nDB\tDatabase\t#0075ca"
+        with patch.object(label_issues, "gh", side_effect=[listed, ""]) as gh:
+            label_issues.ensure_labels(["Bug", "CPP Edit"])
+        self.assertEqual(gh.call_args_list, [
+            call("label", "list", "--repo", "owner/repo", "--limit", "500"),
+            call("label", "create", "CPP Edit", "--repo", "owner/repo", "--color", "BFD4F2", "--force"),
+        ])
+
+    def test_ensure_labels_noop_when_empty_or_all_present(self):
+        with patch.object(label_issues, "gh") as gh:
+            label_issues.ensure_labels([])
+        gh.assert_not_called()
+        with patch.object(label_issues, "gh", return_value="Bug\tx\t#ffffff") as gh:
+            label_issues.ensure_labels(["Bug"])
+        gh.assert_called_once_with("label", "list", "--repo", "owner/repo", "--limit", "500")
 
     def test_github_failure_stops_the_run(self):
         with patch.object(label_issues.subprocess, "run") as run:

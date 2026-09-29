@@ -51,6 +51,11 @@ bool AcceptInvitationAction::Execute(Event event)
     if (!bot->GetGroup() || !bot->GetGroup()->IsMember(inviter->GetGUID()))
         return false;
 
+    // A random bot queued for a battleground by itself kept its new group out of the Dungeon Finder
+    // (PTR, 28/09): with a player, it leaves the queue.
+    if (IsRealPlayer(inviter))
+        CoaLeaveBattlegroundQueues(bot);
+
     if (sRandomPlayerbotMgr.IsRandomBot(bot))
         botAI->SetMaster(inviter);
     // else

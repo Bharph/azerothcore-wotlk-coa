@@ -18,7 +18,7 @@
           "source": {
             "path": "src/server/coa/CoAScriptLoader.cpp",
             "anchor": "    AddSC_AscensionResourceTalents();",
-            "reviewed_sha256": "03d64fb5e89fbdb5cb5183c0e89858fa447363355f4292a3f5b98750152d6dc0"
+            "reviewed_sha256": "3c6638f0be78d751be7dcb57ae6fe49f3aafa1b7e27871768e50b52df3b99d8c"
           }
         },
         {
@@ -36,7 +36,7 @@
           "source": {
             "path": "src/server/game/Spells/Auras/SpellAuraEffects.cpp",
             "anchor": "void AuraEffect::PeriodicTick(",
-            "reviewed_sha256": "56853e39cdcd96f046cefdb32bc8fd1062d376edbfc61f8417060d15263ab9be"
+            "reviewed_sha256": "656b766f7b56186d9a8e0b0456ac58eba08e09bdbc459ff1c970b006106f73ec"
           }
         },
         {
@@ -45,7 +45,7 @@
           "source": {
             "path": "src/server/game/Spells/Auras/SpellAuraEffects.cpp",
             "anchor": "void AuraEffect::HandleObsModPowerAuraTick(",
-            "reviewed_sha256": "56853e39cdcd96f046cefdb32bc8fd1062d376edbfc61f8417060d15263ab9be"
+            "reviewed_sha256": "656b766f7b56186d9a8e0b0456ac58eba08e09bdbc459ff1c970b006106f73ec"
           }
         }
       ],
@@ -77,7 +77,7 @@
           "source": {
             "path": "src/server/coa/AscensionCompat.cpp",
             "anchor": "  bool SetTalentRank(Player* player,",
-            "reviewed_sha256": "9cd036a46c888c90a759b19f0db5b7e540ddeb3c0899c45493bcbbdb7a267726"
+            "reviewed_sha256": "235ab0632a2bffe796caa069cd049d503ac03cb4f77356834e24317c3f23f6aa"
           }
         },
         {
@@ -86,7 +86,7 @@
           "source": {
             "path": "src/server/coa/AscensionCompat.cpp",
             "anchor": "  bool ApplyKnownEntriesUpload(Player* player,",
-            "reviewed_sha256": "9cd036a46c888c90a759b19f0db5b7e540ddeb3c0899c45493bcbbdb7a267726"
+            "reviewed_sha256": "235ab0632a2bffe796caa069cd049d503ac03cb4f77356834e24317c3f23f6aa"
           }
         }
       ],
@@ -109,7 +109,7 @@
           "source": {
             "path": "src/server/game/Handlers/QuestHandler.cpp",
             "anchor": "void WorldSession::HandleQuestgiverAcceptQuestOpcode(",
-            "reviewed_sha256": "8b4454f2ee9fd464da23d467cadb423aac9309325428d36e50cc9d9fc75894fa"
+            "reviewed_sha256": "a20f14b984db5c136a9ff0902c4403440f7a4898d5ef54f18f33f0f8883a64eb"
           }
         },
         {
@@ -118,7 +118,7 @@
           "source": {
             "path": "src/server/game/Entities/Player/PlayerQuest.cpp",
             "anchor": "bool Player::CanTakeQuest(Quest const* quest, bool msg)",
-            "reviewed_sha256": "db3b722f0711206f39ec951b14f65da43054b67f498d2043a6b5aeac1900a9d8"
+            "reviewed_sha256": "104ba869a1f59c7ef242c69cf48dd3c4ab46140b9f00a8325810d41be3522dd0"
           }
         },
         {
@@ -127,7 +127,7 @@
           "source": {
             "path": "src/server/game/Handlers/QuestHandler.cpp",
             "anchor": "void WorldSession::HandleQuestgiverChooseRewardOpcode(",
-            "reviewed_sha256": "8b4454f2ee9fd464da23d467cadb423aac9309325428d36e50cc9d9fc75894fa"
+            "reviewed_sha256": "a20f14b984db5c136a9ff0902c4403440f7a4898d5ef54f18f33f0f8883a64eb"
           }
         },
         {
@@ -136,7 +136,7 @@
           "source": {
             "path": "src/server/game/Entities/Player/PlayerQuest.cpp",
             "anchor": "void Player::RewardQuest(",
-            "reviewed_sha256": "db3b722f0711206f39ec951b14f65da43054b67f498d2043a6b5aeac1900a9d8"
+            "reviewed_sha256": "104ba869a1f59c7ef242c69cf48dd3c4ab46140b9f00a8325810d41be3522dd0"
           }
         }
       ],
@@ -167,7 +167,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "bool HandlePacket(Player* player, WorldPacket const& packet)",
-            "reviewed_sha256": "aedc138d7091f7e3f77dcf880be07b20e106363cf54289816334fa158341a00f"
+            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
           }
         },
         {
@@ -176,7 +176,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "bool CanUseBall(Player* player, Creature const* ball)",
-            "reviewed_sha256": "aedc138d7091f7e3f77dcf880be07b20e106363cf54289816334fa158341a00f"
+            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
           }
         },
         {
@@ -185,7 +185,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "bool Accept(Player* player, Creature* ball, Quest const* quest)",
-            "reviewed_sha256": "aedc138d7091f7e3f77dcf880be07b20e106363cf54289816334fa158341a00f"
+            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
           }
         },
         {
@@ -194,7 +194,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "            if (player->CanRewardQuest(quest, reward, true))",
-            "reviewed_sha256": "aedc138d7091f7e3f77dcf880be07b20e106363cf54289816334fa158341a00f"
+            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
           }
         }
       ],
@@ -227,7 +227,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "void AddSC_AscensionWisdomball()",
-            "reviewed_sha256": "aedc138d7091f7e3f77dcf880be07b20e106363cf54289816334fa158341a00f"
+            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
           }
         },
         {
@@ -236,7 +236,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "class npc_wondrous_wisdomball : public CreatureScript",
-            "reviewed_sha256": "aedc138d7091f7e3f77dcf880be07b20e106363cf54289816334fa158341a00f"
+            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
           }
         }
       ],

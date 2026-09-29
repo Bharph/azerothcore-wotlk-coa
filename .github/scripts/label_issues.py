@@ -159,6 +159,20 @@ def gh(*args):
     return result.stdout.strip()
 
 
+def ensure_labels(labels):
+    if not labels:
+        return
+
+    existing = {
+        line.split("\t", 1)[0]
+        for line in gh("label", "list", "--repo", REPO, "--limit", "500").splitlines()
+        if line
+    }
+    for label in labels:
+        if label not in existing:
+            gh("label", "create", label, "--repo", REPO, "--color", "BFD4F2", "--force")
+
+
 def get_issue(number):
     output = gh(
         "api",
@@ -257,6 +271,7 @@ def update_issue(number, issue, desired_labels, dry_run=False):
     print(f"#{number}: {verb}: {', '.join(to_add)}")
     if not dry_run:
         resource = "pr" if "pull_request" in issue else "issue"
+        ensure_labels(to_add)
         gh(resource, "edit", str(number), "--add-label", ",".join(to_add), "--repo", REPO)
 
 
