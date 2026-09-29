@@ -78,6 +78,8 @@ jobs:
           # Match production so this job fails only on what breaks the real build.
           echo "CCUSTOMOPTIONS='-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache'" >> conf/config.sh
       - name: Compile
-        run: bash apps/ci/ci-compile.sh
+        run: |
+          mkdir -p "$CCACHE_DIR"
+          bash apps/ci/ci-compile.sh
       - name: Run unit tests
         run: bash apps/ci/ci-run-unit-tests.sh
