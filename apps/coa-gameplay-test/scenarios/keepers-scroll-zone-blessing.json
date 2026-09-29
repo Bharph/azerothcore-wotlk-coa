@@ -14,7 +14,7 @@
   "steps": [
     { "action": "wait", "ms": 5000 },
     { "action": "group", "label": "cross-faction party: the Horde user and an Alliance member", "actor": "user", "target": "ally" },
-    { "action": "console", "command": "tele name Harnesse TheCrossroads" },
+    { "action": "console", "command": "tele name Harnesse RazorHill" },
     { "action": "wait", "ms": 3000 },
     { "action": "add_item", "actor": "user", "item": 1179269 },
     { "action": "use_item", "actor": "user", "item": 1179269, "spell": 91814 },
@@ -60,7 +60,7 @@
     { "action": "assert", "label": "the other faction can bless itself in the same zone", "actor": "alliance",
       "metric": "aura", "spell": 91814, "equals": 1, "within_ms": 4000 },
 
-    { "action": "console", "command": "tele name Harnesse RazorHill" },
+    { "action": "console", "command": "tele name Harnesse TheCrossroads" },
     { "action": "assert", "label": "a player of the user's faction entering the zone later is blessed", "actor": "latecomer",
       "metric": "aura", "spell": 91814, "equals": 1, "within_ms": 6000 },
 
