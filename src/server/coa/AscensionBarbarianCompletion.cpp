@@ -238,6 +238,11 @@ class aura_ascension_barbarian_lifecycle : public AuraScript
 
     void Apply(AuraEffect const* effect, AuraEffectHandleModes)
     {
+        if (Spirit(GetId()))
+            if (Player* self = Owner(GetTarget()))
+                for (uint32 spirit : { 707763, 707764, 707775, 712467, 712468 })
+                    if (spirit != GetId())
+                        self->RemoveAurasDueToSpell(spirit);
         if (effect->GetEffIndex() != EFFECT_0)
             return;
         if (GetId() == 805804)
@@ -254,10 +259,6 @@ class aura_ascension_barbarian_lifecycle : public AuraScript
         if (!player)
             return;
         uint32 id = GetId();
-        if (Spirit(id))
-            for (uint32 spirit : { 707763, 707764, 707775, 712467, 712468 })
-                if (spirit != id)
-                    player->RemoveAurasDueToSpell(spirit);
         if (id == 801761 && player->HasAura(707410))
             player->CastSpell(player, 521240, true);
         if (id == 707410)
