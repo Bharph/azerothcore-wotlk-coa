@@ -731,6 +731,7 @@ class PlayerDumpReader;
 class ObjectMgr
 {
     friend class PlayerDumpReader;
+    friend class QuestMenuCapTest;
 
 private:
     ObjectMgr();
