@@ -619,8 +619,9 @@ void DropAttackCast(Player* bot)
 bool SmartHeal();
 Player* GroupTank(Player* bot);
 // In a group with a tank, a healer is there to heal: it keeps its mana above this share and fights
-// with what costs nothing, where alone it only kept AiPlayerbot.CoaHealerManaReserve.
-constexpr uint32 GroupHealerManaReserve = 85;
+// with what costs nothing, where alone it only kept AiPlayerbot.CoaHealerManaReserve. At 85 it was
+// saving nearly all fight long and chose its cheapest heals while members died (28/09).
+constexpr uint32 GroupHealerManaReserve = 60;
 
 bool SavingManaForHeals(Player* bot)
 {
@@ -958,6 +959,9 @@ bool IsLastingFailure(SpellCastResult result)
         case SPELL_FAILED_BAD_IMPLICIT_TARGETS: case SPELL_FAILED_BAD_TARGETS: case SPELL_FAILED_CASTER_AURASTATE:
         case SPELL_FAILED_NOT_SHAPESHIFT: case SPELL_FAILED_ONLY_SHAPESHIFT: case SPELL_FAILED_TARGET_AURASTATE:
         case SPELL_FAILED_EQUIPPED_ITEM_CLASS: case SPELL_FAILED_REAGENTS: case SPELL_FAILED_TOTEMS:
+        // Stunned or in stasis: asking again every tick changed nothing (3,848 tries in a row for a
+        // Bloodmage, 28/09).
+        case SPELL_FAILED_STUNNED:
             return true;
         default:
             return false;
@@ -2123,17 +2127,20 @@ public:
                                            { NextAction("coa group heal", ACTION_CRITICAL_HEAL + 3) }));
         triggers.push_back(new TriggerNode("party member low health",
                                            { NextAction("coa heal", ACTION_CRITICAL_HEAL + 2) }));
+        // The spec rotations put their attacks and buffs up to 30: the heals that act before a member
+        // drops low sit just above them, or they never came (NUC dungeon arenas, 28/09: healers ended
+        // their fights with 64-83% mana while members spent 4.6 s under half health before dying).
         triggers.push_back(new TriggerNode("party member medium health",
                                            { NextAction("coa hot", ACTION_CRITICAL_HEAL + 1),
-                                             NextAction("coa heal", ACTION_CRITICAL_HEAL) }));
+                                             NextAction("coa heal", ACTION_CRITICAL_HEAL + 0.7f) }));
         triggers.push_back(new TriggerNode("party member almost full health",
-                                           { NextAction("coa hot", ACTION_MEDIUM_HEAL) }));
+                                           { NextAction("coa hot", ACTION_CRITICAL_HEAL + 0.6f) }));
 
         // Smart healing (AiPlayerbot.CoaSmartHeal; these triggers stay silent without it): a heal
         // over time kept on the tank, back within reach of the tank between casts - above the
         // attacks, below every heal - and a word to the group when the mana runs out.
-        triggers.push_back(new TriggerNode("coa tank needs hot", { NextAction("coa hot", ACTION_MEDIUM_HEAL - 1) }));
-        triggers.push_back(new TriggerNode("coa far from tank", { NextAction("coa stay near tank", ACTION_MEDIUM_HEAL - 2) }));
+        triggers.push_back(new TriggerNode("coa tank needs hot", { NextAction("coa hot", ACTION_CRITICAL_HEAL + 0.4f) }));
+        triggers.push_back(new TriggerNode("coa far from tank", { NextAction("coa stay near tank", ACTION_CRITICAL_HEAL + 0.3f) }));
         triggers.push_back(new TriggerNode("coa out of healing reach", { NextAction("coa stay near tank", ACTION_EMERGENCY + 5) }));
         triggers.push_back(new TriggerNode("coa healer low mana", { NextAction("coa say low mana", ACTION_MEDIUM_HEAL + 8) }));
     }
