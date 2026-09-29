@@ -2186,6 +2186,11 @@ Unit* NextPull(PlayerbotAI* botAI, Player* bot, Player* master)
         if (!creature || !creature->IsAlive() || creature->IsInCombat() || creature->IsCritter() ||
             creature->IsCivilian() || creature->IsTotem() || creature->IsPet() || !creature->IsHostileTo(bot))
             continue;
+        // Never an NPC the player would not fight, nor one that talks or gives quests: an Alliance tank
+        // in a Horde player's group pulled Deathstalker Adamant, the prisoner who opens Shadowfang Keep
+        // (jealous-sound/azerothcore-wotlk-coa#5552, #5395).
+        if (!creature->IsHostileTo(master) || creature->HasNpcFlag(NPCFlags(UNIT_NPC_FLAG_GOSSIP | UNIT_NPC_FLAG_QUESTGIVER)))
+            continue;
 
         float const distance = bot->GetDistance(creature);
         if (distance > bestDistance || master->GetDistance(creature) > AutoPullLeash ||
