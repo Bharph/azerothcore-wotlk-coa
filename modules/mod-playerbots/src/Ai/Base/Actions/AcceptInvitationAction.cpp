@@ -54,7 +54,10 @@ bool AcceptInvitationAction::Execute(Event event)
     // A random bot queued for a battleground by itself kept its new group out of the Dungeon Finder
     // (PTR, 28/09): with a player, it leaves the queue.
     if (IsRealPlayer(inviter))
+    {
         CoaLeaveBattlegroundQueues(bot);
+        CoaDropForeignInstanceBinds(bot, inviter);
+    }
 
     if (sRandomPlayerbotMgr.IsRandomBot(bot))
         botAI->SetMaster(inviter);
@@ -71,7 +74,7 @@ bool AcceptInvitationAction::Execute(Event event)
     if (offered && (bot->GetMap() != inviter->GetMap() || bot->GetDistance(inviter) > 10.0f))
     {
         bot->TeleportTo(inviter->GetMapId(), inviter->GetPositionX(), inviter->GetPositionY(), inviter->GetPositionZ(),
-                        inviter->GetOrientation());
+                        inviter->GetOrientation(), 0, nullptr, CoaInOtherInstance(bot, inviter));
     }
     else if (sPlayerbotAIConfig.summonWhenGroup && bot->GetDistance(inviter) > sPlayerbotAIConfig.sightDistance)
     {

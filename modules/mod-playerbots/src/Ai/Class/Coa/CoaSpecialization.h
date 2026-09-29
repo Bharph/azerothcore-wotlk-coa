@@ -124,6 +124,14 @@ bool CoaLfgTakeOffer(Player* bot, Player* inviter);
 // queue for anything ("You cannot queue for a dungeon while using battlegrounds or arenas", PTR 28/09).
 void CoaLeaveBattlegroundQueues(Player* bot);
 
+// A random bot joining `master` drops its instance locks, but the one `master` stands in: a lock from an
+// earlier run sent it into another Molten Core than its master's, and summoning never brought it over
+// (jealous-sound/azerothcore-wotlk-coa#5557). Player characters and altbots keep theirs.
+void CoaDropForeignInstanceBinds(Player* bot, Player* master);
+
+// Whether `bot` stands on `master`'s map but in another copy of it: a summon must then change instance.
+bool CoaInOtherInstance(Player* bot, Player* master);
+
 void AddSC_coa_lfg();
 
 // The group fight log (AiPlayerbot.CoaGroupTelemetry) follows a group of bots only, as it follows a

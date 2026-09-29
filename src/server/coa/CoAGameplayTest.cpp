@@ -373,6 +373,7 @@ struct Actor
     uint32 bankShows = 0;
     uint32 systemMessages = 0;
     std::vector<std::string> systemMessageTexts;
+    std::vector<std::pair<ObjectGuid, std::string>> whispers;
     uint32 notifications = 0;
     std::vector<std::string> notificationTexts;
     uint32 challengeStartResponses = 0;
@@ -592,7 +593,7 @@ void ObservePacket(Actor& actor, WorldPacket const& packet)
         if (caster == actor.guid)
             actor.castPushbackMs += delay;
     }
-    if (packet.GetOpcode() == SMSG_CAST_FAILED)
+    if (packet.GetOpcode() == SMSG_CAST_FAILED || packet.GetOpcode() == SMSG_PET_CAST_FAILED)
     {
         WorldPacket response(packet);
         uint8 count, reason;
@@ -612,7 +613,7 @@ void ObservePacket(Actor& actor, WorldPacket const& packet)
         WorldPacket chat(packet);
         uint8 chatType = 0;
         chat >> chatType;
-        if (chatType == CHAT_MSG_SYSTEM)
+        if (chatType == CHAT_MSG_SYSTEM || chatType == CHAT_MSG_WHISPER)
         {
             int32 language;
             uint32 flags;
@@ -625,7 +626,10 @@ void ObservePacket(Actor& actor, WorldPacket const& packet)
                 text.resize(length - 1);
                 chat.read(reinterpret_cast<uint8*>(text.data()), text.size());
             }
-            actor.systemMessageTexts.push_back(text);
+            if (chatType == CHAT_MSG_SYSTEM)
+                actor.systemMessageTexts.push_back(text);
+            else
+                actor.whispers.emplace_back(sender, text);
         }
     }
     if (packet.GetOpcode() == SMSG_NOTIFICATION)
@@ -2257,6 +2261,14 @@ private:
             return std::any_of(lines.begin(), lines.end(), [&needle](std::string const& line)
                 { return line.find(needle) != std::string::npos; }) ? 1.0 : 0.0;
         }
+        if (metric == "whispers_received")
+        {
+            ObjectGuid const from = GetPlayer(step.get<std::string>("from"))->GetGUID();
+            std::string const text = step.get<std::string>("text");
+            auto const& whispers = _actors.at(step.get<std::string>("actor")).whispers;
+            return double(std::count_if(whispers.begin(), whispers.end(), [&](auto const& whisper)
+                { return whisper.first == from && whisper.second == text; }));
+        }
         if (metric == "notifications")
             return double(_actors.at(step.get<std::string>("actor")).notifications);
         if (metric == "notification_contains")
@@ -2304,7 +2316,7 @@ private:
         if (metric == "pet_entry" || metric == "pet_aura_stacks" || metric == "pet_aura_amount" ||
             metric == "pet_aura_amplitude_ms" || metric == "pet_aura_duration_ms" || metric == "pet_max_health" ||
             metric == "pet_attack_power" || metric == "pet_run_speed_rate" || metric == "pet_is_banker" ||
-            metric == "pet_display" || metric == "pet_scale")
+            metric == "pet_display" || metric == "pet_scale" || metric == "pet_knows_spell")
         {
             Creature* pet = player->GetGuardianPet();
             if (!pet)
@@ -2319,6 +2331,8 @@ private:
                 return pet ? pet->GetDisplayId() : 0;
             if (metric == "pet_scale")
                 return pet ? double(pet->GetObjectScale()) : 0.0;
+            if (metric == "pet_knows_spell")
+                return pet && pet->IsPet() && pet->ToPet()->HasSpell(spell);
             if (!pet && (metric == "pet_aura_stacks" || metric == "pet_aura_amount" ||
                 metric == "pet_aura_amplitude_ms" || metric == "pet_aura_duration_ms"))
                 return 0;
@@ -2933,6 +2947,14 @@ private:
             Require(player->IsAlive() == revived, revived ? "The death was not followed by a resurrection"
                 : "Self damage did not kill the player");
         }
+        else if (action == "whisper")
+        {
+            WorldPacket packet(CMSG_MESSAGECHAT, 64);
+            packet << uint32(CHAT_MSG_WHISPER) << step.get<uint32>("language", LANG_COMMON)
+                << step.get<std::string>("to") << step.get<std::string>("text");
+            player->GetSession()->HandleMessagechatOpcode(packet);
+            record.put("result", "whisper sent; verify delivery with assertions");
+        }
         else if (action == "command")
         {
             ChatHandler handler(player->GetSession());
@@ -3113,6 +3135,27 @@ private:
             packet << guid;
             player->GetSession()->HandleBankerActivateOpcode(packet);
         }
+        else if (action == "binder_activate")
+        {
+            Unit* innkeeper = GetUnit(step.get<std::string>("target"));
+            if (!innkeeper->IsWithinDistInMap(player, INTERACTION_DISTANCE))
+                player->UpdatePosition(innkeeper->GetPositionX(), innkeeper->GetPositionY(),
+                                       innkeeper->GetPositionZ(), player->GetOrientation(), true);
+            WorldPacket packet(CMSG_BINDER_ACTIVATE, 8);
+            packet << innkeeper->GetGUID();
+            player->GetSession()->HandleBinderActivateOpcode(packet);
+        }
+        else if (action == "destroy_item")
+        {
+            Item* item = player->GetItemByEntry(step.get<uint32>("item"));
+            Require(item != nullptr, "The player carries no item of that entry");
+            WorldPacket packet(CMSG_DESTROYITEM, 6);
+            packet << uint8(item->GetBagSlot()) << uint8(item->GetSlot()) << uint8(0)
+                   << uint8(0) << uint8(0) << uint8(0);
+            WorldPackets::Item::DestroyItem request(std::move(packet));
+            request.Read();
+            player->GetSession()->HandleDestroyItemOpcode(request);
+        }
         else if (action == "start_challenge")
         {
             WorldPacket packet(CMSG_COA_START_CHALLENGE, 8);
@@ -3285,9 +3328,15 @@ private:
         {
             _actors.at(step.get<std::string>("actor")).castFailureReason.erase(spell);
             SpellCastTargets targets;
-            Unit* caster = action == "cast_charm" ? player->GetCharm() : player;
-            Require(caster != nullptr, "Player has no charmed unit");
+            Unit* caster = action != "cast_charm" ? player :
+                step.get<bool>("pet", false) ? static_cast<Unit*>(player->GetPet()) : player->GetCharm();
+            Require(caster != nullptr, "Player has no charmed unit or pet");
             Unit* target = step.get_optional<std::string>("target") ? GetUnit(step.get<std::string>("target")) : caster;
+            if (step.get<bool>("target_pet", false))
+            {
+                target = player->GetPet();
+                Require(target != nullptr, "Cast at a pet needs a current pet");
+            }
             if (auto targetItem = step.get_optional<uint32>("target_item"))
             {
                 Item* item = player->GetItemByEntry(*targetItem);

@@ -15,6 +15,7 @@
 #include "BattlegroundMgr.h"
 #include "LFGMgr.h"
 #include "Group.h"
+#include "InstanceSaveMgr.h"
 #include "GroupMgr.h"
 #include "ItemTemplate.h"
 #include "Log.h"
@@ -668,6 +669,27 @@ void CoaLeaveBattlegroundQueues(Player* bot)
     }
 }
 
+void CoaDropForeignInstanceBinds(Player* bot, Player* master)
+{
+    if (!bot || !master || !sRandomPlayerbotMgr.IsRandomBot(bot))
+        return;
+    for (uint8 difficulty = 0; difficulty < MAX_DIFFICULTY; ++difficulty)
+    {
+        std::vector<InstanceSave*> foreign;
+        for (auto const& [mapId, bind] : sInstanceSaveMgr->PlayerGetBoundInstances(bot->GetGUID(), Difficulty(difficulty)))
+            if (bind.save && !(bind.save->GetMapId() == master->GetMapId() &&
+                               bind.save->GetInstanceId() == master->GetInstanceId()))
+                foreign.push_back(bind.save);
+        for (InstanceSave* save : foreign)
+            sInstanceSaveMgr->PlayerUnbindInstance(bot->GetGUID(), save->GetMapId(), save->GetDifficulty(), true, bot);
+    }
+}
+
+bool CoaInOtherInstance(Player* bot, Player* master)
+{
+    return bot && master && bot->GetMapId() == master->GetMapId() && bot->GetInstanceId() != master->GetInstanceId();
+}
+
 bool RecruitCoaBot(Player* master, CoaRole role, std::string& message, uint8 classId)
 {
     Group* group = master->GetGroup();
@@ -714,10 +736,11 @@ bool RecruitCoaBot(Player* master, CoaRole role, std::string& message, uint8 cla
         return false;
     }
     CoaLeaveBattlegroundQueues(chosen);
+    CoaDropForeignInstanceBinds(chosen, master);
 
     // After joining the group, so the bot may enter the master's dungeon instance.
     chosen->TeleportTo(master->GetMapId(), master->GetPositionX(), master->GetPositionY(), master->GetPositionZ(),
-                       master->GetOrientation());
+                       master->GetOrientation(), 0, nullptr, CoaInOtherInstance(chosen, master));
 
     if (PlayerbotAI* botAI = GET_PLAYERBOT_AI(chosen))
     {
