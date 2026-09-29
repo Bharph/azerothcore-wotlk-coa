@@ -6,6 +6,7 @@
 
 #include "UseMeetingStoneAction.h"
 #include "CellImpl.h"
+#include "CoaSpecialization.h"
 #include "Event.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
@@ -236,7 +237,13 @@ bool SummonAction::Teleport(Player* summoner, Player* player, bool preserveAuras
                 if (!preserveAuras)
                     player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TELEPORTED |
                                                           AURA_INTERRUPT_FLAG_CHANGE_MAP);
-                player->TeleportTo(mapId, x, y, z, 0);
+                // An old raid lock sent the bot into another copy of the summoner's dungeon, and a near
+                // teleport kept it there: the lock goes first, then it changes instance if need be
+                // (jealous-sound/azerothcore-wotlk-coa#5557).
+                bool const otherInstance = CoaInOtherInstance(player, summoner);
+                if (otherInstance || summoner->GetMap()->IsDungeon())
+                    CoaDropForeignInstanceBinds(player, summoner);
+                player->TeleportTo(mapId, x, y, z, 0, 0, nullptr, otherInstance);
                 if (player->GetPet())
                     player->GetPet()->NearTeleportTo(x, y, z, player->GetOrientation());
                 if (player->GetGuardianPet())
