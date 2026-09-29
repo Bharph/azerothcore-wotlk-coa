@@ -40,3 +40,33 @@ jobs:
           python -B apps/coa-tests/core_integration/run.py
       - run: python -B tools/check_repository.py
       - run: git diff --check HEAD^ HEAD
+
+  linux-build:
+    name: linux-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      COMPILER: clang
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git cmake make clang ccache             libmysqlclient-dev libssl-dev libbz2-dev libreadline-dev libncurses-dev libboost-all-dev
+      - name: Restore ccache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ github.ref_name }}-
+            ccache-${{ runner.os }}-trikyn-main-
+            ccache-${{ runner.os }}-
+      - name: Configure (tests on, static scripts and modules)
+        run: ./apps/ci/ci-conf-core.sh
+      - name: Compile
+        run: ./apps/ci/ci-compile.sh
+      - name: Run unit tests
+        run: ./apps/ci/ci-run-unit-tests.sh
