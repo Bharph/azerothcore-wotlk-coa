@@ -289,7 +289,8 @@ void QuestMenu::AddMenuItem(uint32 QuestId, uint8 Icon)
     if (!sObjectMgr->GetQuestTemplate(QuestId))
         return;
 
-    ASSERT(_questMenuItems.size() <= GOSSIP_MAX_MENU_ITEMS);
+    if (_questMenuItems.size() >= GOSSIP_MAX_MENU_ITEMS)
+        return;
 
     QuestMenuItem questMenuItem;
 
