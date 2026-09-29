@@ -27,9 +27,10 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE IF NOT EXISTS `auctionhousebot_professionItems` (
-  `Entry` int NOT NULL,
-  `Item` int NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  `Entry` int NOT NULL AUTO_INCREMENT,
+  `Item` int NOT NULL,
+  PRIMARY KEY (`Entry`)
+) ENGINE=InnoDB AUTO_INCREMENT=3661 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `auctionhousebot_professionItems`
@@ -3699,27 +3700,7 @@ INSERT INTO `auctionhousebot_professionItems` (`Entry`, `Item`) VALUES
 (3659, 52021),
 (3660, 54797);
 
---
--- Indexes for dumped tables
---
-
---
--- Indexes for table `auctionhousebot_professionItems`
---
-ALTER TABLE `auctionhousebot_professionItems`
-  ADD PRIMARY KEY (`Entry`);
-
---
--- AUTO_INCREMENT for dumped tables
---
-
---
--- AUTO_INCREMENT for table `auctionhousebot_professionItems`
---
-ALTER TABLE `auctionhousebot_professionItems`
-  MODIFY `Entry` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3661;
 COMMIT;
-
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
