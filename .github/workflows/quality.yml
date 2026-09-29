@@ -48,7 +48,9 @@ jobs:
     concurrency:
       group: linux-build-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
-    runs-on: ubuntu-latest
+    # Pinned to the production image's Ubuntu (apps/docker/Dockerfile UBUNTU_VERSION=24.04); ubuntu-latest
+    # moves to 26.04 from 2026-10-19 and that clang needs different dev packages to link.
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       COMPILER: clang
