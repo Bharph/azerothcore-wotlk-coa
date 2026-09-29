@@ -46,6 +46,7 @@
 #include "AscensionCoATalentData.h"
 #include "AscensionLiveBaselineData.h"
 #include "AscensionTaughtAbilityData.h"
+#include <cstdio>
 #include <mutex>
 #include <unordered_map>
 #include "AscensionSpecialization.h"
@@ -1686,12 +1687,17 @@ std::unordered_map<uint64, uint32> const& CoaTableGrantLevels()
         };
         for (auto const& e : AscensionCompatData::ClassSpells)
             note(e.ClassId, e.SpellId, e.RequiredLevel);
+        // In these three lists a level of 0 means the trainer level was never found, not level 0:
+        // Blade of Faith ranks 3 to 9 sit there at 0, and level 20 Templars kept rank 9 (level 58).
         for (auto const& e : AscensionCompatData::LegacyGeneratedClassSpells)
-            note(e.ClassId, e.SpellId, e.RequiredLevel);
+            if (e.RequiredLevel)
+                note(e.ClassId, e.SpellId, e.RequiredLevel);
         for (auto const& e : AscensionCompatData::UnresolvedTrainerSpells)
-            note(e.ClassId, e.SpellId, e.RequiredLevel);
+            if (e.RequiredLevel)
+                note(e.ClassId, e.SpellId, e.RequiredLevel);
         for (auto const& e : AscensionCompatData::ObsoleteClassSpells)
-            note(e.ClassId, e.SpellId, e.RequiredLevel);
+            if (e.RequiredLevel)
+                note(e.ClassId, e.SpellId, e.RequiredLevel);
         for (auto const& e : AscensionProgression::Ranks)
             note(e.ClassId, e.SpellId, e.RequiredLevel);
         for (auto const& e : AscensionCompatData::CoATalentEntries)
@@ -1796,6 +1802,16 @@ uint32 PlayerbotFactory::CoaGrantLevel(Player* bot, uint32 spellId)
     for (auto const& e : AscensionCompatData::TalentProficiencies)
         if (e.ClassId == bot->getClass() && e.ProficiencySpellId == spellId && bot->HasSpell(e.TalentSpellId))
             level = std::min<uint32>(level, 1);
+    // A higher rank no table knows (the Witch Doctor's Malefic Arrow ranks 2 to 9) is due at its own
+    // spell level: level 20 Witch Doctors cast rank 5 (level 36) in the dungeon arenas (28/09).
+    if (level == NoCoaGrantLevel)
+        if (SpellInfo const* info = sSpellMgr->GetSpellInfo(spellId))
+        {
+            char const* rank = info->Rank[0];
+            uint32 number = 0;
+            if (rank && std::sscanf(rank, "Rank %u", &number) == 1 && number >= 2 && info->SpellLevel)
+                level = info->SpellLevel;
+        }
     return level;
 }
 
