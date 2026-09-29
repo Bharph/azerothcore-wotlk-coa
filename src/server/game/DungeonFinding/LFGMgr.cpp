@@ -2335,8 +2335,17 @@ namespace lfg
         uint32 gDungeonId = GetDungeon(gguid);
         if (gDungeonId != dungeonId)
         {
-            LOG_DEBUG("lfg", "LFGMgr::FinishDungeon: [{}] Finished dungeon {} but group queued for {}. Ignoring", gguid.ToString(), dungeonId, gDungeonId);
-            return;
+            // Ascension splits one instance map into several LFG "wing" entries, but a boss can credit
+            // only one of them, so the wing the finder assigned often differs from the wing the killed
+            // boss names. Accept a sibling entry on the same map and difficulty, the same equivalence
+            // inLfgDungeonMap already uses; the per-player map checks below still bind the reward.
+            LFGDungeonData const* queued = GetLFGDungeon(gDungeonId);
+            LFGDungeonData const* finished = GetLFGDungeon(dungeonId);
+            if (!queued || !finished || queued->map != finished->map || queued->difficulty != finished->difficulty)
+            {
+                LOG_DEBUG("lfg", "LFGMgr::FinishDungeon: [{}] Finished dungeon {} but group queued for {}. Ignoring", gguid.ToString(), dungeonId, gDungeonId);
+                return;
+            }
         }
 
         if (GetState(gguid) == LFG_STATE_FINISHED_DUNGEON) // Shouldn't happen. Do not reward multiple times
