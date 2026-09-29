@@ -64,8 +64,12 @@ jobs:
             ccache-${{ runner.os }}-${{ github.ref_name }}-
             ccache-${{ runner.os }}-trikyn-main-
             ccache-${{ runner.os }}-
-      - name: Configure (tests on, static scripts and modules)
-        run: bash apps/ci/ci-conf-core.sh
+      - name: Configure (tests on, static scripts and modules, production warning policy)
+        run: |
+          bash apps/ci/ci-conf-core.sh
+          # The inherited script adds -Werror; the production image (apps/docker/Dockerfile) does not.
+          # Match production so this job fails only on what breaks the real build.
+          echo "CCUSTOMOPTIONS='-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache'" >> conf/config.sh
       - name: Compile
         run: bash apps/ci/ci-compile.sh
       - name: Run unit tests
