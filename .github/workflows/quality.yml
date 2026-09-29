@@ -65,8 +65,8 @@ jobs:
             ccache-${{ runner.os }}-trikyn-main-
             ccache-${{ runner.os }}-
       - name: Configure (tests on, static scripts and modules)
-        run: ./apps/ci/ci-conf-core.sh
+        run: bash apps/ci/ci-conf-core.sh
       - name: Compile
-        run: ./apps/ci/ci-compile.sh
+        run: bash apps/ci/ci-compile.sh
       - name: Run unit tests
-        run: ./apps/ci/ci-run-unit-tests.sh
+        run: bash apps/ci/ci-run-unit-tests.sh
