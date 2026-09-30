@@ -33,6 +33,8 @@
 #include "AscensionSpecialization.h"
 #include "AscensionCoATalentData.h"
 #include "AscensionSpellProgressionData.h"
+#include "AscensionCustomClassData.h"
+#include "AscensionLiveBaselineData.h"
 
 #include <algorithm>
 #include <cctype>
@@ -410,6 +412,43 @@ uint32 ApplyCoaTalents(Player* bot)
             itr->second = pick.Rank;
     }
 
+    // Entries of one free-choice group exclude each other: the core removes the others when one is set.
+    // Keeping two of them in the build made the bot swap them back and forth on every refresh.
+    auto const freeGroupOf = [](uint32 entryId) -> uint32
+    {
+        for (AscensionCompatData::CoASelectableFreeEntry const& free : AscensionCompatData::CoASelectableFreeEntries)
+            if (free.EntryId == entryId)
+                return free.GroupId;
+        return 0;
+    };
+    for (size_t i = wanted.size(); i-- > 0;)
+    {
+        uint32 const group = freeGroupOf(wanted[i].first);
+        if (!group)
+            continue;
+        for (size_t j = 0; j < i; ++j)
+            if (freeGroupOf(wanted[j].first) == group)
+            {
+                wanted.erase(wanted.begin() + j);
+                --i;
+                --j;
+            }
+    }
+
+    // The core teaches the class baseline again right after any change (SynchronizeProgression), so
+    // lowering an entry whose spell is part of that baseline never sticks and was redone every refresh.
+    auto const coreGrants = [bot](uint32 spellId)
+    {
+        for (AscensionLiveBaseline::Spell const& spell : AscensionLiveBaseline::Spells)
+            if (spell.ClassId == bot->getClass() && spell.SpellId == spellId &&
+                (!spell.RaceId || spell.RaceId == bot->getRace()))
+                return true;
+        for (AscensionCompatData::ClassSpell const& spell : AscensionCompatData::ClassSpells)
+            if (spell.ClassId == bot->getClass() && spell.SpellId == spellId && spell.RequiredLevel <= bot->GetLevel())
+                return true;
+        return false;
+    };
+
     // Down first: a bot brought down in level kept the entries of the level it had, the core only ever
     // raises them (Fiery Judgement, spell level 31, on a level 3 Witch Hunter). Every entry of its class
     // above what the build holds at this level goes back down, to 0 when the build has none of it yet.
@@ -421,7 +460,10 @@ uint32 ApplyCoaTalents(Player* bot)
         auto itr = std::find_if(wanted.begin(), wanted.end(),
             [&entry](std::pair<uint32, uint8> const& w) { return w.first == entry.EntryId; });
         uint32 const allowed = itr == wanted.end() ? 0 : itr->second;
-        if (GetAscensionTalentRank(bot, entry.EntryId) > allowed && SetAscensionTalentRank(bot, entry.EntryId, allowed))
+        uint32 const current = GetAscensionTalentRank(bot, entry.EntryId);
+        if (current <= allowed || coreGrants(entry.SpellIds[current - 1]))
+            continue;
+        if (SetAscensionTalentRank(bot, entry.EntryId, allowed) && GetAscensionTalentRank(bot, entry.EntryId) < current)
             ++lowered;
     }
     // The higher ranks of an ability taken away stay otherwise: the rank table learns rank 2+ from the
@@ -437,7 +479,8 @@ uint32 ApplyCoaTalents(Player* bot)
 
     uint32 raised = 0;
     for (auto const& [entryId, rank] : wanted)
-        if (GetAscensionTalentRank(bot, entryId) < rank && SetAscensionTalentRank(bot, entryId, rank))
+        if (GetAscensionTalentRank(bot, entryId) < rank && SetAscensionTalentRank(bot, entryId, rank) &&
+            GetAscensionTalentRank(bot, entryId) >= rank)
             ++raised;
 
     if (raised || lowered)
