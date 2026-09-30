@@ -26,6 +26,7 @@
 #include "PlayerbotAI.h"
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotTextMgr.h"
+#include "Group.h"
 #include "Playerbots.h"
 #include "Position.h"
 #include "QuestDef.h"
@@ -593,6 +594,14 @@ bool NewRpgBaseAction::IsQuestCapableDoing(Quest const* quest)
 
 bool NewRpgBaseAction::OrganizeQuestLog()
 {
+    // Grouped with a real player, the log follows that player: the quests they share, grey or elite dungeon
+    // quests included, are theirs to drop (jealous-sound/azerothcore-wotlk-coa#5776).
+    if (Group* group = bot->GetGroup())
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+            if (Player* member = ref->GetSource())
+                if (member != bot && !GET_PLAYERBOT_AI(member))
+                    return false;
+
     int32 freeSlotNum = 0;
 
     for (uint16 i = 0; i < MAX_QUEST_LOG_SIZE; ++i)
@@ -1229,6 +1238,13 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                 if (botAI->lowPriorityQuest.find(questId) != botAI->lowPriorityQuest.end())
                     continue;
 
+                // An elite, group or too high quest in the log (copied from the master, shared, "accept all") is
+                // only handed in, never worked on alone: bots died on it again and again
+                // (jealous-sound/azerothcore-wotlk-coa#5521).
+                if (Quest const* logged = sObjectMgr->GetQuestTemplate(questId))
+                    if (bot->GetQuestStatus(questId) != QUEST_STATUS_COMPLETE && !IsQuestCapableDoing(logged))
+                        continue;
+
                 std::vector<POIInfo> poiInfo;
                 if (GetQuestPOIPosAndObjectiveIdx(questId, poiInfo, true))
                 {
@@ -1341,6 +1357,13 @@ bool NewRpgBaseAction::CheckRpgStatusAvailable(NewRpgStatus status)
                 uint32 questId = bot->GetQuestSlotQuestId(slot);
                 if (botAI->lowPriorityQuest.find(questId) != botAI->lowPriorityQuest.end())
                     continue;
+
+                // An elite, group or too high quest in the log (copied from the master, shared, "accept all") is
+                // only handed in, never worked on alone: bots died on it again and again
+                // (jealous-sound/azerothcore-wotlk-coa#5521).
+                if (Quest const* logged = sObjectMgr->GetQuestTemplate(questId))
+                    if (bot->GetQuestStatus(questId) != QUEST_STATUS_COMPLETE && !IsQuestCapableDoing(logged))
+                        continue;
 
                 std::vector<POIInfo> poiInfo;
                 if (GetQuestPOIPosAndObjectiveIdx(questId, poiInfo, true))

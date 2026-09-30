@@ -1085,7 +1085,10 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
             // now and cast it on a later tick, once standing still.
             if (bot->isMoving() && spell.info->CalcCastTime(bot))
             {
-                bot->StopMoving();
+                // Out of combat nothing is urgent: stopping the follow for a top-up heal that the next tick
+                // might not cast made bots stutter behind their master (jealous-sound/azerothcore-wotlk-coa#5595).
+                if (bot->IsInCombat())
+                    bot->StopMoving();
                 if (usage != 255)
                     RecordFailure(usage, spell.info->Id, FAILURE_MOVING);
                 note(spell.info->Id, FAILURE_MOVING);
