@@ -51,7 +51,9 @@ jobs:
     # Pinned to the production image's Ubuntu (apps/docker/Dockerfile UBUNTU_VERSION=24.04); ubuntu-latest
     # moves to 26.04 from 2026-10-19 and that clang needs different dev packages to link.
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    # A cold compile on the hosted runner took 1h48-2h02 on 2026-09-29/30; 120 min cancelled the first
+    # trikyn-main run before the cache step could save the baseline.
+    timeout-minutes: 180
     env:
       COMPILER: clang
       # acore.sh's ccache integration honours CCACHE_DIR; keep it on the path the cache step saves.
