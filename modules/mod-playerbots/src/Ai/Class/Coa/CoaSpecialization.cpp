@@ -47,6 +47,7 @@
 #include <mutex>
 #include <sstream>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace
 {
@@ -451,10 +452,20 @@ uint32 ApplyCoaTalents(Player* bot)
         return false;
     };
 
+    // Two entries can hold the same spell: taking it away from the one the build does not want took it
+    // from the wanted one too, which was raised again next time, for ever.
+    std::unordered_set<uint32> wantedSpells;
+    for (auto const& [entryId, rank] : wanted)
+        if (AscensionCompatData::CoATalentEntry const* entry = entryOf(entryId))
+            for (uint32 r = 0; r < rank && r < entry->SpellIds.size(); ++r)
+                if (entry->SpellIds[r])
+                    wantedSpells.insert(entry->SpellIds[r]);
+
     // Down first: a bot brought down in level kept the entries of the level it had, the core only ever
     // raises them (Fiery Judgement, spell level 31, on a level 3 Witch Hunter). Every entry of its class
     // above what the build holds at this level goes back down, to 0 when the build has none of it yet.
     uint32 lowered = 0;
+    std::string changes;
     for (AscensionCompatData::CoATalentEntry const& entry : AscensionCompatData::CoATalentEntries)
     {
         if (entry.ClassId != bot->getClass())
@@ -463,10 +474,13 @@ uint32 ApplyCoaTalents(Player* bot)
             [&entry](std::pair<uint32, uint8> const& w) { return w.first == entry.EntryId; });
         uint32 const allowed = itr == wanted.end() ? 0 : itr->second;
         uint32 const current = GetAscensionTalentRank(bot, entry.EntryId);
-        if (current <= allowed || coreGrants(entry.SpellIds[current - 1]))
+        if (current <= allowed || coreGrants(entry.SpellIds[current - 1]) || wantedSpells.count(entry.SpellIds[current - 1]))
             continue;
         if (SetAscensionTalentRank(bot, entry.EntryId, allowed) && GetAscensionTalentRank(bot, entry.EntryId) < current)
+        {
             ++lowered;
+            changes += " -" + std::to_string(entry.EntryId);
+        }
     }
     // The higher ranks of an ability taken away stay otherwise: the rank table learns rank 2+ from the
     // first one, and nothing removes them with it.
@@ -483,11 +497,14 @@ uint32 ApplyCoaTalents(Player* bot)
     for (auto const& [entryId, rank] : wanted)
         if (GetAscensionTalentRank(bot, entryId) < rank && SetAscensionTalentRank(bot, entryId, rank) &&
             GetAscensionTalentRank(bot, entryId) >= rank)
+        {
             ++raised;
+            changes += " +" + std::to_string(entryId);
+        }
 
     if (raised || lowered)
-        LOG_INFO("playerbots", "coa: {} (class {}, level {}, specialization {}) raised {}, lowered {} talent entries ({} orphan ranks)",
-                 bot->GetName(), bot->getClass(), bot->GetLevel(), specializationId, raised, lowered, orphans);
+        LOG_INFO("playerbots", "coa: {} (class {}, level {}, specialization {}) raised {}, lowered {} talent entries ({} orphan ranks):{}",
+                 bot->GetName(), bot->getClass(), bot->GetLevel(), specializationId, raised, lowered, orphans, changes);
     return raised;
 }
 
