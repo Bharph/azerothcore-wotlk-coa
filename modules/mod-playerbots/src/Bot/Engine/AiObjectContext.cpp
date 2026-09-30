@@ -5,6 +5,7 @@
  */
 
 #include "AiObjectContext.h"
+#include <mutex>
 #include "CoaAiObjectContext.h"
 #include "DKAiObjectContext.h"
 #include "DruidAiObjectContext.h"
@@ -37,18 +38,24 @@ AiObjectContext::AiObjectContext(PlayerbotAI* botAI, SharedNamedObjectContextLis
 
 void AiObjectContext::BuildAllSharedContexts()
 {
-    AiObjectContext::BuildSharedContexts();
-    PriestAiObjectContext::BuildSharedContexts();
-    MageAiObjectContext::BuildSharedContexts();
-    WarlockAiObjectContext::BuildSharedContexts();
-    WarriorAiObjectContext::BuildSharedContexts();
-    ShamanAiObjectContext::BuildSharedContexts();
-    PaladinAiObjectContext::BuildSharedContexts();
-    DruidAiObjectContext::BuildSharedContexts();
-    CoaAiObjectContext::BuildSharedContexts();
-    HunterAiObjectContext::BuildSharedContexts();
-    RogueAiObjectContext::BuildSharedContexts();
-    DKAiObjectContext::BuildSharedContexts();
+    // These are immutable factories, not per-reload configuration. Rebuilding appends duplicate contexts
+    // and mutates registries referenced by already running bots.
+    static std::once_flag initialized;
+    std::call_once(initialized, []
+    {
+        AiObjectContext::BuildSharedContexts();
+        PriestAiObjectContext::BuildSharedContexts();
+        MageAiObjectContext::BuildSharedContexts();
+        WarlockAiObjectContext::BuildSharedContexts();
+        WarriorAiObjectContext::BuildSharedContexts();
+        ShamanAiObjectContext::BuildSharedContexts();
+        PaladinAiObjectContext::BuildSharedContexts();
+        DruidAiObjectContext::BuildSharedContexts();
+        CoaAiObjectContext::BuildSharedContexts();
+        HunterAiObjectContext::BuildSharedContexts();
+        RogueAiObjectContext::BuildSharedContexts();
+        DKAiObjectContext::BuildSharedContexts();
+    });
 }
 
 void AiObjectContext::BuildSharedContexts()
