@@ -84,13 +84,14 @@ struct ClassKit
     uint16 kinds = 0;  // every kind some ability of the class has
 };
 
-// Ally targets: pet, party and raid areas, ally or any unit, chain heal.
+// Ally targets: pet, party and raid areas, ally or any unit, chain heal, nearby ally, party or raid
+// member and allies in a cone.
 bool IsAllyTarget(uint32 target)
 {
     switch (target)
     {
-        case 5: case 20: case 21: case 25: case 30: case 31: case 33:
-        case 34: case 35: case 37: case 45: case 56: case 57: case 61:
+        case 3: case 4: case 5: case 20: case 21: case 25: case 30: case 31: case 33:
+        case 34: case 35: case 37: case 45: case 56: case 57: case 58: case 59: case 61:
             return true;
         default:
             return false;
@@ -355,6 +356,11 @@ void Classify(SpellInfo const* info, CoaAbility& ability, uint8 depth = 0)
             ability.kind |= KIND_INTERRUPT;
 
         if (aura && self && IsDefensiveAura(effect) && duration > 0 && duration < LongAura)
+            ability.kind |= KIND_DEFENSIVE;
+
+        // A heal only for the caster (Barbarian, several tanks) matched no kind, so no bot ever cast
+        // it: it is used like the other self-saving spells, when the bot is in trouble.
+        if (heal && self && !ally)
             ability.kind |= KIND_DEFENSIVE;
 
         // Stances and forms (no duration) are left out: two of them would take turns forever.

@@ -356,6 +356,8 @@ bool EnsureCoaSpecialization(Player* bot)
     }
 
     std::vector<uint32> const& candidates = byRole[chosenRole];
+    if (candidates.empty())
+        return false;
     uint32 const specializationId = candidates[Hash(bot->GetGUID().GetCounter(), 0x50494B4Bu) % candidates.size()];   // 'PIKK'
 
     // The specialization a character is created with decides nothing about the group: keep it only
@@ -656,8 +658,8 @@ bool PrepareCoaRecruit(Player* master, Player* chosen, CoaRole role, bool chosen
         // Keep the array alive: a reference into the temporary would dangle.
         std::array<std::vector<uint32>, 3> const byRole = SpecializationsByRole(chosen->getClass());
         std::vector<uint32> const& candidates = byRole[uint8(role)];
-        uint32 const specialization = candidates[urand(0, candidates.size() - 1)];
-        if (!SwitchAscensionSpecialization(chosen, specialization))
+        uint32 const specialization = candidates.empty() ? 0 : candidates[urand(0, candidates.size() - 1)];
+        if (!specialization || !SwitchAscensionSpecialization(chosen, specialization))
         {
             message = "Could not give " + chosen->GetName() + " a specialization.";
             return false;
