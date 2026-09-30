@@ -4,6 +4,7 @@
  * or (at your option) any later version.
  */
 
+#include "CoaQuestMenu.h"
 #include "NewRpgBaseAction.h"
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
@@ -306,6 +307,8 @@ bool NewRpgBaseAction::InteractWithNpcOrGameObjectForQuest(ObjectGuid guid)
     //     bot->GetSession()->HandleGossipHelloOpcode(packet);
     // }
 
+    if (!CoaQuestMenuFits(guid))
+        return true;
     bot->PrepareQuestMenu(guid);
     QuestMenu const& menu = bot->PlayerTalkClass->GetQuestMenu();
     if (menu.Empty())
@@ -778,6 +781,8 @@ ObjectGuid NewRpgBaseAction::ChooseNpcOrGameObjectToInteract(bool questgiverOnly
 bool NewRpgBaseAction::HasQuestToAcceptOrReward(WorldObject* object)
 {
     ObjectGuid guid = object->GetGUID();
+    if (!CoaQuestMenuFits(guid))
+        return false;
     bot->PrepareQuestMenu(guid);
     QuestMenu const& menu = bot->PlayerTalkClass->GetQuestMenu();
     if (menu.Empty())

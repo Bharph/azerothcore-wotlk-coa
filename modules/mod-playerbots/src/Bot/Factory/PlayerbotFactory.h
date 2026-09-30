@@ -80,6 +80,13 @@ public:
     void InitEquipment(bool incremental, bool second_chance = false);
     // A CoA bot under level 5 left naked by an older version gets its class starter kit back.
     static void DressNakedCoaStarter(Player* bot);
+    // Takes off the CoA spell ranks above `level`: the core grants them on the way up only, so a bot
+    // brought down in level kept the ranks of the level it had. Returns how many were removed.
+    static uint32 DropCoaRanksAbove(Player* bot, uint32 level);
+    // The lowest level a player of the bot's CoA class is granted that spell at, by the core's tables or
+    // the class trainers; NoCoaGrantLevel when none of them knows it.
+    static constexpr uint32 NoCoaGrantLevel = 0xFFFF;
+    static uint32 CoaGrantLevel(Player* bot, uint32 spellId);
     void InitPet();
     void InitAmmo();
     static uint32 CalcMixedGearScore(uint32 gs, uint32 quality);

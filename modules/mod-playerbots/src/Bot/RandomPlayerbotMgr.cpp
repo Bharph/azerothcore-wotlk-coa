@@ -2666,6 +2666,10 @@ void RandomPlayerbotMgr::OnBotLoginInternal(Player* const bot)
 
     // Bots rebuilt under level 5 before 1.5 lost their CoA starter kit and still stand naked.
     PlayerbotFactory::DressNakedCoaStarter(bot);
+    // And those brought down in level before 1.5.1 still carry the spell ranks of their old level.
+    if (uint32 const dropped = PlayerbotFactory::DropCoaRanksAbove(bot, bot->GetLevel()))
+        LOG_INFO("playerbots", "{} (level {}): {} spell ranks above its level removed", bot->GetName(),
+                 uint32(bot->GetLevel()), dropped);
 
     if (sPlayerbotAIConfig.randomBotFixedLevel)
     {

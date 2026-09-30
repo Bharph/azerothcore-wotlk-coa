@@ -9,7 +9,7 @@
 #include "Playerbots.h"
 #include "Trigger.h"
 
-bool ExternalEventHelper::ParseChatCommand(std::string const command, Player* owner)
+bool ExternalEventHelper::ParseChatCommand(std::string const command, Player* owner, bool whisper)
 {
     if (HandleCommand(command, "", owner))
         return true;
@@ -31,6 +31,12 @@ bool ExternalEventHelper::ParseChatCommand(std::string const command, Player* ow
     }
 
     if (!ChatHelper::parseableItem(command))
+        return false;
+
+    // Outside a whisper only a real item link asks for a trade: parseableItem matches words anywhere in
+    // the text ("whisper", "party", "epic", "head", "5g"...), and any sentence holding one opened a trade
+    // window from every bot of the channel (Discord report, 28/09: the word "whisper" in Newcomers).
+    if (!whisper && command.find("|Hitem:") == std::string::npos)
         return false;
 
     if (sPlayerbotAIConfig.enableAutoTradeOnItemMention)

@@ -445,3 +445,13 @@ INSERT INTO `playerbots_custom_strategy` (`owner`, `name`, `idx`, `action_line`)
     (0, 'starcaller-moon-priest', 40, 'can cast::Wand>cast::Wand!1'),
     (0, 'starcaller-moon-priest', 41, 'can cast::Lunar Eclipse>cast::Lunar Eclipse!79'),
     (0, 'starcaller-moon-priest', 42, 'can cast::Lunar Lance>cast::Lunar Lance!78');
+
+-- 19. Buy Time (Chronomancer Time, niveau 59) met en stase tout ce qui se trouve dans la zone, allies
+--     et ennemis, le lanceur compris s'il y est : bannis, invulnerables, immobiles. En tete de la
+--     rotation du soigneur (!30), il figeait son groupe et lui-meme : dans les arenes du banc, 2 254
+--     soins refuses « stunned » dans 23 % de ses combats, Buy Time lance dans 69 % d'entre eux contre
+--     10 % ailleurs (28/09/2026). Un joueur s'en sert pour sauver une situation, pas en boucle : le bot
+--     ne sait pas choisir ce moment, il ne le lance plus.
+--       avant : chronomancer-time 'can cast::Buy Time>cast::Buy Time!30'
+DELETE FROM `playerbots_custom_strategy`
+ WHERE `name` = 'chronomancer-time' AND `action_line` LIKE '%::Buy Time!%';
