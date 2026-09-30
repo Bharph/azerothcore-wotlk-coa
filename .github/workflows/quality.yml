@@ -1,7 +1,7 @@
 name: CoA repository checks
 on:
   push:
-    branches: [main]
+    branches: [trikyn-main]
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
