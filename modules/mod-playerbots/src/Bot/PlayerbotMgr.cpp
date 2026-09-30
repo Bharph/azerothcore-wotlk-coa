@@ -992,6 +992,12 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
         return messages;
     }
 
+    // Conquest of Azeroth names may hold a space ("Aria Dawn"): keep everything after the command as the name.
+    std::string namesArg = args;
+    namesArg = namesArg.substr(std::min(namesArg.size(), namesArg.find(' ')));
+    namesArg.erase(0, namesArg.find_first_not_of(' '));
+    namesArg.erase(namesArg.find_last_not_of(' ') + 1);
+
     char* cmd = strtok((char*)args, " ");
     char* charname = strtok(nullptr, " ");
     char* genderArg = strtok(nullptr, " ");    // Added for gender choice [male|female|0|1] optionnel
@@ -1286,7 +1292,7 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
     }
     else
     {
-        charnameStr = charname;
+        charnameStr = namesArg.empty() ? std::string(charname) : namesArg;
     }
 
     std::string const cmdStr = cmd;
