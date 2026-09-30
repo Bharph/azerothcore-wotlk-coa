@@ -50,7 +50,7 @@ METRICS = {
     'system_message_contains', 'whispers_received', 'challenge_start_responses', 'challenge_start_code',
     'owned_creature_scale', 'unit_scale', 'combat_reach', 'token_count', 'item_sell_price', 'creature_model_scale', 'creature_model_display',
     'taxi_node', 'pet_entry', 'pet_aura_stacks', 'pet_aura_duration_ms', 'pet_is_banker', 'pet_display',
-    'pet_scale', 'pet_knows_spell', 'owned_creature_count',
+    'pet_scale', 'pet_knows_spell', 'owned_creature_count', 'owned_creature_weapon_damage_min',
     'charm_entry', 'charm_aura_stacks', 'controls_self', 'private_instance',
     'dynamic_object', 'dynamic_object_duration_ms', 'gossip_options',
     'owned_gameobject_count', 'gameobject_remaining_ms', 'at_homebind',
@@ -133,6 +133,7 @@ ACTIONS = {
     'money': ({'actor', 'copper'}, {'actor', 'copper'}),
     'set_aura': ({'actor', 'spell', 'stacks'}, {'actor', 'spell', 'stacks', 'pet'}),
     'cancel_aura': ({'actor', 'spell'}, {'actor', 'spell'}),
+    'cancel_mount': ({'actor'}, {'actor'}),
     'cast': ({'actor', 'spell'}, {'actor', 'spell', 'target', 'destination', 'target_pet'}),
     'attack': ({'actor', 'target'}, {'actor', 'target', 'pet'}),
     'pvp': ({'actor', 'enabled'}, {'actor', 'enabled'}),
@@ -532,7 +533,7 @@ def validate(scenario):
             if metric == 'owned_creature_count':
                 require('entry' in step, f'{where}: metric needs creature entry')
                 require('caster' not in step or 'spell' in step, f'{where}: aura caster filter needs spell')
-            if metric == 'owned_creature_scale':
+            if metric in {'owned_creature_scale', 'owned_creature_weapon_damage_min'}:
                 require('entry' in step, f'{where}: metric needs creature entry')
             if metric == 'system_message_contains':
                 require(isinstance(step.get('text'), str) and step['text'].strip(),
@@ -576,6 +577,7 @@ def validate(scenario):
                           'cast_pushback_ms',
                           'bank_shows', 'system_messages', 'system_message_contains', 'whispers_received',
                           'challenge_start_responses', 'challenge_start_code', 'owned_creature_scale', 'cast_failure',
+                          'owned_creature_weapon_damage_min',
                           'pet_entry', 'pet_aura_stacks', 'pet_is_banker', 'pet_display', 'pet_scale',
                           'pet_knows_spell', 'owned_creature_count', 'charm_entry',
                           'charm_aura_stacks', 'controls_self', 'private_instance',

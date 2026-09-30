@@ -429,7 +429,7 @@ void RandomPlayerbotMgr::UpdateAIInternal(uint32 /*elapsed*/, bool /*minimal*/)
                 break;
         }
 
-        if (loginBots && botLoading.empty())
+        if (loginBots && !HasPendingLogins())
         {
             loginBots += updateBots;
             loginBots = std::min(loginBots, maxNewBots);
@@ -697,25 +697,27 @@ uint32 RandomPlayerbotMgr::AddRandomBots()
         };
         std::vector<CharacterInfo> allCharacters;
 
-        for (uint32 accountId : accountsToUse)
+        // One bounded roster read instead of a synchronous round trip for every bot account on every batch.
+        // Filter the range back to the exact selected account set, including periodic online/offline rotation.
+        if (!accountsToUse.empty())
         {
-            CharacterDatabasePreparedStatement* stmt =
-                CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARS_BY_ACCOUNT_ID);
-            stmt->SetData(0, accountId);
-            PreparedQueryResult result = CharacterDatabase.Query(stmt);
-            if (!result)
-                continue;
-
-            do
+            auto const [minimum, maximum] = std::minmax_element(accountsToUse.begin(), accountsToUse.end());
+            std::unordered_set<uint32> selectedAccounts(accountsToUse.begin(), accountsToUse.end());
+            // A plain query: the core has no prepared statement for this range (Seth's patch added one to it).
+            QueryResult result = CharacterDatabase.Query(
+                "SELECT guid, class, race, account FROM characters WHERE account BETWEEN {} AND {}", *minimum, *maximum);
+            if (result)
             {
-                Field* fields = result->Fetch();
-                CharacterInfo info;
-                info.guid = fields[0].Get<uint32>();
-                info.rClass = fields[1].Get<uint8>();
-                info.rRace = fields[2].Get<uint8>();
-                info.accountId = accountId;
-                allCharacters.push_back(info);
-            } while (result->NextRow());
+                do
+                {
+                    Field* fields = result->Fetch();
+                    uint32 accountId = fields[3].Get<uint32>();
+                    if (!selectedAccounts.contains(accountId))
+                        continue;
+                    allCharacters.push_back({fields[0].Get<uint32>(), fields[1].Get<uint8>(),
+                        fields[2].Get<uint8>(), accountId});
+                } while (result->NextRow());
+            }
         }
 
         // Shuffle for class balance
@@ -1262,6 +1264,7 @@ void RandomPlayerbotMgr::CheckLfgQueue()
     LfgDungeons[TEAM_HORDE].clear();
     LfgDungeonsMaxPlayerLevel[TEAM_ALLIANCE].clear();
     LfgDungeonsMaxPlayerLevel[TEAM_HORDE].clear();
+    bool needTankOrHeal[2] = {false, false};
 
     for (std::vector<Player*>::iterator i = players.begin(); i != players.end(); ++i)
     {
@@ -1300,8 +1303,15 @@ void RandomPlayerbotMgr::CheckLfgQueue()
                 uint8& recordedLevel = LfgDungeonsMaxPlayerLevel[player->GetTeamId()][dungeon->id];
                 recordedLevel = std::max<uint8>(recordedLevel, queuerLevel);
             }
+
+            uint8 roles = sLFGMgr->GetRoles(player->GetGUID());
+            if (!(roles & lfg::PLAYER_ROLE_TANK) || !(roles & lfg::PLAYER_ROLE_HEALER))
+                needTankOrHeal[player->GetTeamId()] = true;
         }
     }
+
+    LfgNeedTankOrHeal[TEAM_ALLIANCE] = needTankOrHeal[TEAM_ALLIANCE];
+    LfgNeedTankOrHeal[TEAM_HORDE] = needTankOrHeal[TEAM_HORDE];
 
     LOG_DEBUG("playerbots", "LFG Queue check finished");
 }
@@ -2475,7 +2485,7 @@ void RandomPlayerbotMgr::SetValue(Player* bot, std::string const& type, uint32 v
     SetValue(bot->GetGUID().GetCounter(), type, value, data);
 }
 
-bool RandomPlayerbotMgr::HandlePlayerbotConsoleCommand(ChatHandler* /*handler*/, char const* args)
+bool RandomPlayerbotMgr::HandlePlayerbotConsoleCommand(ChatHandler* handler, char const* args)
 {
     if (!sPlayerbotAIConfig.enabled)
     {
@@ -2490,6 +2500,52 @@ bool RandomPlayerbotMgr::HandlePlayerbotConsoleCommand(ChatHandler* /*handler*/,
     }
 
     std::string const cmd = args;
+
+    if (cmd == "memory")
+    {
+        // Bounded, read-only sample; never evaluate calculated values or modify bot state.
+        handler->PSendSysMessage("Random bots online: {}", sRandomPlayerbotMgr.playerBots.size());
+        std::map<std::string, uint32> counts;
+        uint32 sampled = 0;
+        uint64 spells = 0;
+        uint64 values = 0;
+        for (auto const& [guid, bot] : sRandomPlayerbotMgr.playerBots)
+        {
+            PlayerbotAI* ai = GET_PLAYERBOT_AI(bot);
+            if (!ai)
+                continue;
+            spells += bot->GetSpellMap().size();
+            for (std::string const& name : ai->GetAiObjectContext()->GetValues())
+            {
+                ++counts[name.substr(0, name.find("::"))];
+                ++values;
+            }
+            if (++sampled == 100)
+                break;
+        }
+        handler->PSendSysMessage("Bot memory sample: {} bots, {} cached values, {} learned spells. "
+            "Inline sizes (exclude heap allocations): Player={} AI={} Session={}",
+            sampled, values, spells, sizeof(Player), sizeof(PlayerbotAI), sizeof(WorldSession));
+        uint64 grids = 0;
+        uint64 creatures = 0;
+        uint64 gameObjects = 0;
+        sMapMgr->DoForAllMaps([&](Map* map)
+        {
+            grids += map->GetLoadedGridsCount();
+            creatures += map->GetCreatureBySpawnIdStore().size();
+            gameObjects += map->GetGameObjectBySpawnIdStore().size();
+        });
+        handler->PSendSysMessage("Shared world: {} loaded grids, {} spawned creatures, {} spawned gameobjects",
+            grids, creatures, gameObjects);
+        std::vector<std::pair<std::string, uint32>> sorted(counts.begin(), counts.end());
+        std::sort(sorted.begin(), sorted.end(), [](auto const& left, auto const& right)
+        {
+            return left.second > right.second;
+        });
+        for (std::size_t index = 0; index < std::min<std::size_t>(20, sorted.size()); ++index)
+            handler->PSendSysMessage("Cache {}: {} instances", sorted[index].first, sorted[index].second);
+        return true;
+    }
 
     if (cmd == "reset")
     {
@@ -2838,6 +2894,7 @@ void RandomPlayerbotMgr::PrintStats()
     uint32 engine_combat = 0;
     uint32 engine_dead = 0;
     std::unordered_map<NewRpgStatus, int> rpgStatusCount;
+    uint32 botsInCity = 0;
     // static NewRpgStatistic rpgStasticTotal;
     std::unordered_map<uint32, int> zoneCount;
     uint8 maxBotLevel = 0;
@@ -2926,6 +2983,8 @@ void RandomPlayerbotMgr::PrintStats()
         if (sPlayerbotAIConfig.enableNewRpgStrategy)
         {
             rpgStatusCount[botAI->rpgInfo.GetStatus()]++;
+            if (botAI->rpgInfo.cityStayMs)
+                ++botsInCity;
             rpgStasticTotal += botAI->rpgStatistic;
             botAI->rpgStatistic = NewRpgStatistic();
         }
@@ -3002,10 +3061,11 @@ void RandomPlayerbotMgr::PrintStats()
         LOG_INFO("playerbots", "Bots rpg status:");
         LOG_INFO("playerbots",
                  "    Idle: {}, Rest: {}, GoGrind: {}, GoCamp: {}, MoveRandom: {}, MoveNpc: {}, DoQuest: {}, "
-                 "TravelFlight: {}, OutdoorPvP: {}",
+                 "TravelFlight: {}, OutdoorPvP: {}, GoCity: {}, InCity: {}",
                  rpgStatusCount[RPG_IDLE], rpgStatusCount[RPG_REST], rpgStatusCount[RPG_GO_GRIND],
                  rpgStatusCount[RPG_GO_CAMP], rpgStatusCount[RPG_WANDER_RANDOM], rpgStatusCount[RPG_WANDER_NPC],
-                 rpgStatusCount[RPG_DO_QUEST], rpgStatusCount[RPG_TRAVEL_FLIGHT], rpgStatusCount[RPG_OUTDOOR_PVP]);
+                 rpgStatusCount[RPG_DO_QUEST], rpgStatusCount[RPG_TRAVEL_FLIGHT], rpgStatusCount[RPG_OUTDOOR_PVP],
+                 rpgStatusCount[RPG_GO_CITY], botsInCity);
 
         LOG_INFO("playerbots", "Bots total quests:");
         LOG_INFO("playerbots", "    Accepted: {}, Rewarded: {}, Dropped: {}", rpgStasticTotal.questAccepted,

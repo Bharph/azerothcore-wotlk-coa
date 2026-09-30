@@ -84,13 +84,14 @@ struct ClassKit
     uint16 kinds = 0;  // every kind some ability of the class has
 };
 
-// Ally targets: pet, party and raid areas, ally or any unit, chain heal.
+// Ally targets: pet, party and raid areas, ally or any unit, chain heal, nearby ally, party or raid
+// member and allies in a cone.
 bool IsAllyTarget(uint32 target)
 {
     switch (target)
     {
-        case 5: case 20: case 21: case 25: case 30: case 31: case 33:
-        case 34: case 35: case 37: case 45: case 56: case 57: case 61:
+        case 3: case 4: case 5: case 20: case 21: case 25: case 30: case 31: case 33:
+        case 34: case 35: case 37: case 45: case 56: case 57: case 58: case 59: case 61:
             return true;
         default:
             return false;
@@ -355,6 +356,11 @@ void Classify(SpellInfo const* info, CoaAbility& ability, uint8 depth = 0)
             ability.kind |= KIND_INTERRUPT;
 
         if (aura && self && IsDefensiveAura(effect) && duration > 0 && duration < LongAura)
+            ability.kind |= KIND_DEFENSIVE;
+
+        // A heal only for the caster (Barbarian, several tanks) matched no kind, so no bot ever cast
+        // it: it is used like the other self-saving spells, when the bot is in trouble.
+        if (heal && self && !ally)
             ability.kind |= KIND_DEFENSIVE;
 
         // Stances and forms (no duration) are left out: two of them would take turns forever.
@@ -982,6 +988,47 @@ void RecordFailure(uint8 kind, uint32 spellId, uint16 reason);
 // Casts the first ability of the list that passes the strict check on the target. Returns it,
 // or nullptr when none went off. With a usage kind, why each ability failed is counted.
 
+// How long the creature a spell summons stays, looking into the spells it triggers: 0 when the
+// spell summons nothing. Totems and wards are summons without a cooldown, and a bot recast them
+// on every global cooldown while the first one was still up (Cultist Tentacle of Yogg-Saron,
+// Witch Doctor Healing Ward, jealous-sound/azerothcore-wotlk-coa#5739, #5605).
+time_t SummonSeconds(SpellInfo const* info, uint8 depth = 0)
+{
+    for (SpellEffectInfo const& effect : info->Effects)
+    {
+        if (effect.Effect == SPELL_EFFECT_SUMMON)
+        {
+            int32 const duration = info->GetMaxDuration();
+            return duration > 0 ? std::min<time_t>(duration / IN_MILLISECONDS, 120) : 30;
+        }
+        if (effect.TriggerSpell && depth < 2)
+            if (SpellInfo const* triggered = sSpellMgr->GetSpellInfo(effect.TriggerSpell))
+                if (time_t const seconds = SummonSeconds(triggered, depth + 1))
+                    return seconds;
+    }
+    return 0;
+}
+
+// How far an attack centred on its caster reaches: a cleave, a cone or a spin that hits
+// around the bot, whatever unit it is aimed at. 0 when the spell reaches its target instead.
+float CasterCentredReach(Player* bot, SpellInfo const* info)
+{
+    float reach = 0.0f;
+    for (SpellEffectInfo const& effect : info->Effects)
+    {
+        if (!effect.IsEffect() || (!IsEnemyTarget(effect.TargetA.GetTarget()) && !IsEnemyTarget(effect.TargetB.GetTarget())))
+            continue;
+
+        uint32 const a = effect.TargetA.GetTarget();
+        bool const centred = a == TARGET_SRC_CASTER || a == TARGET_UNIT_CONE_ENEMY_24 || a == TARGET_UNIT_CONE_ENEMY_104 ||
+                             a == TARGET_UNIT_CONE_ENEMY_54;
+        if (!centred)
+            return 0.0f;
+        reach = std::max(reach, effect.CalcRadius(bot));
+    }
+    return reach;
+}
+
 SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> const& spells, Unit* target,
                            uint8 usage = 255)
 {
@@ -1020,6 +1067,17 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
             benched.erase(bench);
         }
 
+        // A melee cleave or spin hits around the bot, not at its target: cast from afar it only
+        // cost a global cooldown and resources (KoX Meatsaw, Guardian Broad Sweep on the pull,
+        // jealous-sound/azerothcore-wotlk-coa#5500, #5453).
+        if (target && target != bot)
+            if (float const reach = CasterCentredReach(bot, spell.info))
+                if (!bot->IsWithinDistInMap(target, reach))
+                {
+                    note(spell.info->Id, SKIPPED_BENCHED);
+                    continue;
+                }
+
         SpellCastResult const check = StrictCheck(bot, spell.info, target);
         if (check == SPELL_CAST_OK)
         {
@@ -1027,7 +1085,10 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
             // now and cast it on a later tick, once standing still.
             if (bot->isMoving() && spell.info->CalcCastTime(bot))
             {
-                bot->StopMoving();
+                // Out of combat nothing is urgent: stopping the follow for a top-up heal that the next tick
+                // might not cast made bots stutter behind their master (jealous-sound/azerothcore-wotlk-coa#5595).
+                if (bot->IsInCombat())
+                    bot->StopMoving();
                 if (usage != 255)
                     RecordFailure(usage, spell.info->Id, FAILURE_MOVING);
                 note(spell.info->Id, FAILURE_MOVING);
@@ -1042,6 +1103,8 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
             if (botAI->CastSpell(spell.info->Id, target))
             {
                 note(spell.info->Id, 0);
+                if (time_t const seconds = SummonSeconds(spell.info))
+                    benched[spell.info->Id] = now + seconds;
                 return spell.info;
             }
 
@@ -2366,7 +2429,8 @@ Player* DeadGroupMember(Player* bot)
     float bestDistance = 0.0f;
     auto consider = [&](Player* dead, int rank)
     {
-        if (!dead || dead == bot || dead->IsAlive() || dead->HasPlayerFlag(PLAYER_FLAGS_GHOST) || !OnSameInstance(bot, dead))
+        if (!dead || dead == bot || dead->IsAlive() || dead->HasPlayerFlag(PLAYER_FLAGS_GHOST) || dead->isResurrectRequested() ||
+            !OnSameInstance(bot, dead))
             return;
         float const distance = dead->GetDistance(bot);
         if (distance > sPlayerbotAIConfig.sightDistance)

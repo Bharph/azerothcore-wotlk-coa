@@ -404,6 +404,7 @@ assert stable maximums and final levels when testing damage coefficients.
 | `money` | `actor`, `copper`: fixture purse, so a priced trainer row can be bought on a character that starts with none. |
 | `set_aura` | `actor`, `spell`, `stacks`: fixture aura state, within its stack limit; zero removes it. Optional `pet: true` selects the actor's current pet. |
 | `cancel_aura` | Player `actor`, `spell`: native `CMSG_CANCEL_AURA` handler; assert the resulting aura state. |
+| `cancel_mount` | Player `actor`: native `CMSG_CANCEL_MOUNT_AURA` handler, the dismount a client sends with a mounted cast. |
 | `talent` | `actor`, `talent`, zero-based `rank`: learn with normal point/prerequisite checks. |
 | `reset_talents` | `actor`: reset active talents through normal removal, without a trainer fee. |
 | `cast` | `actor`, `spell`, optional `target` (self by default): normal session cast handler. |
@@ -648,6 +649,8 @@ Player commands retain normal permission and gameplay checks; verify their effec
 `owned_creature_count` requires a player and `entry`. It counts living creatures of that entry owned, created or summoned by
 the player, in the same phase and within 100 yards, including summons outside the guardian-pet slot.
 An optional `spell` restricts the count to creatures with that aura; `caster` can select its aura owner. `min_distance` keeps creatures at least that many yards from the player (2D), and `owner_display: true` those wearing the player's display.
+`owned_creature_weapon_damage_min` requires a player and `entry`. It returns the lowest minimum weapon damage (`UNIT_FIELD_MINDAMAGE`) across their living
+owned creatures of that entry in the same phase and within 100 yards, so every copy of a guardian must meet an asserted `min`; zero when there are none.
 `owned_gameobject_count` requires a player and `entry`. It counts their summoned gameobjects of that entry
 in the same phase and within 100 yards. `gameobject_remaining_ms` uses the same lookup and requires exactly
 one object when present; it returns the remaining lifetime with one-second precision, zero when absent,
