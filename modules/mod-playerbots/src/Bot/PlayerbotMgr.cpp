@@ -66,7 +66,41 @@ private:
 };
 
 std::unordered_set<ObjectGuid> BotInitGuard::botsBeingInitialized;
-std::unordered_map<ObjectGuid, uint32> PlayerbotHolder::botLoading;
+std::unordered_map<ObjectGuid, BotLoginProgress> PlayerbotHolder::botLoading;
+
+namespace
+{
+// A login that has not come back by now is treated as lost rather than pending, so that the one bot
+// it belongs to is the only one it costs.
+constexpr time_t BotLoginStallSeconds = 60;
+}
+
+bool PlayerbotHolder::HasPendingLogins()
+{
+    time_t const now = time(nullptr);
+    bool pending = false;
+
+    for (auto& [guid, progress] : botLoading)
+    {
+        if (now - progress.since < BotLoginStallSeconds)
+        {
+            pending = true;
+            continue;
+        }
+
+        if (progress.reported)
+            continue;
+
+        progress.reported = true;
+        std::string name;
+        sCharacterCache->GetCharacterNameByGuid(guid, name);
+        LOG_ERROR("playerbots", "Bot {} (guid {}) has not finished logging in after {} seconds; the other bots "
+                  "are no longer held back by it",
+                  name.empty() ? "<unknown>" : name, guid.GetCounter(), BotLoginStallSeconds);
+    }
+
+    return pending;
+}
 
 PlayerbotHolder::PlayerbotHolder() : PlayerbotAIBase(false) {}
 class PlayerbotLoginQueryHolder : public LoginQueryHolder
@@ -124,9 +158,9 @@ void PlayerbotHolder::AddPlayerBot(ObjectGuid playerGuid, uint32 masterAccountId
             return;
         }
         uint32 loadingForMaster = 0;
-        for (auto const& [guid, acctId] : botLoading)
+        for (auto const& [guid, progress] : botLoading)
         {
-            if (acctId == masterAccountId)
+            if (progress.masterAccountId == masterAccountId)
                 ++loadingForMaster;
         }
         uint32 count = mgr->GetPlayerbotsCount() + loadingForMaster;
@@ -152,7 +186,7 @@ void PlayerbotHolder::AddPlayerBot(ObjectGuid playerGuid, uint32 masterAccountId
         return;
     }
 
-    botLoading.emplace(playerGuid, masterAccountId);
+    botLoading.emplace(playerGuid, BotLoginProgress{ masterAccountId, time(nullptr), false });
 
     // Always login in with world session to avoid race condition
     sWorld->AddQueryHolderCallback(CharacterDatabase.DelayQueryHolder(holder))

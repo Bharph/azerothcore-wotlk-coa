@@ -429,7 +429,7 @@ void RandomPlayerbotMgr::UpdateAIInternal(uint32 /*elapsed*/, bool /*minimal*/)
                 break;
         }
 
-        if (loginBots && botLoading.empty())
+        if (loginBots && !HasPendingLogins())
         {
             loginBots += updateBots;
             loginBots = std::min(loginBots, maxNewBots);
