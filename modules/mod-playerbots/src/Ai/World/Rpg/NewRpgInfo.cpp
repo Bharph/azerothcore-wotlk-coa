@@ -192,8 +192,7 @@ std::string NewRpgInfo::ToString()
         else if constexpr (std::is_same_v<T, GoCity>)
         {
             out << "GO_CITY";
-            out << "
-CityPos: " << arg.pos.GetMapId() << " " << arg.pos.GetPositionX() << " "
+            out << "\nCityPos: " << arg.pos.GetMapId() << " " << arg.pos.GetPositionX() << " "
                 << arg.pos.GetPositionY() << " " << arg.pos.GetPositionZ();
         }
         else if constexpr (std::is_same_v<T, OutdoorPvP>)
