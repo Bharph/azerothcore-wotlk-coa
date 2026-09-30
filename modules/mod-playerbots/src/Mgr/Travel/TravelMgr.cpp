@@ -4444,6 +4444,15 @@ std::vector<std::vector<uint32>> TravelMgr::GetOptimalFlightDestinations(Player*
         {
             if (botLevel < bracket.low || botLevel > bracket.high)
                 continue;
+            // Random teleports already skip the other faction's zones; flights went there through neutral flight
+            // masters (Alliance bots in Ghostlands, jealous-sound/azerothcore-wotlk-coa#5324).
+            if (AreaTableEntry const* zoneEntry = sAreaTableStore.LookupEntry(zoneId))
+            {
+                if (zoneEntry->team == 4 && bot->GetTeamId() == TEAM_ALLIANCE)
+                    continue;
+                if (zoneEntry->team == 2 && bot->GetTeamId() == TEAM_HORDE)
+                    continue;
+            }
             if (GetFlightNodesInZone(zoneId, bot->GetTeamId(), fromNode).empty())
                 continue;
             candidateZones.push_back(zoneId);

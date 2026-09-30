@@ -2426,7 +2426,8 @@ Player* DeadGroupMember(Player* bot)
     float bestDistance = 0.0f;
     auto consider = [&](Player* dead, int rank)
     {
-        if (!dead || dead == bot || dead->IsAlive() || dead->HasPlayerFlag(PLAYER_FLAGS_GHOST) || !OnSameInstance(bot, dead))
+        if (!dead || dead == bot || dead->IsAlive() || dead->HasPlayerFlag(PLAYER_FLAGS_GHOST) || dead->isResurrectRequested() ||
+            !OnSameInstance(bot, dead))
             return;
         float const distance = dead->GetDistance(bot);
         if (distance > sPlayerbotAIConfig.sightDistance)

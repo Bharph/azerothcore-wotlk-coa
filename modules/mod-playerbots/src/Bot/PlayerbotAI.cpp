@@ -1741,12 +1741,14 @@ void PlayerbotAI::DoNextAction(bool min)
             if (!bot->isMoving() && distance < 10.0f)
                 bot->SetStandState(UNIT_STAND_STATE_SIT);
         }
-        else if (nextAICheckDelay < 1000)
+        // Not out of an aura that seats its wearer: Rejuvenating Rays sat the bot again every tick
+        // (jealous-sound/azerothcore-wotlk-coa#4572).
+        else if (nextAICheckDelay < 1000 && !(bot->GetInterruptMask() & AURA_INTERRUPT_FLAG_NOT_SEATED))
             bot->SetStandState(UNIT_STAND_STATE_STAND);
     }
     else if (bot->m_movementInfo.HasMovementFlag(MOVEMENTFLAG_WALKING))
         bot->m_movementInfo.RemoveMovementFlag(MOVEMENTFLAG_WALKING);
-    else if ((nextAICheckDelay < 1000) && bot->IsSitState())
+    else if ((nextAICheckDelay < 1000) && bot->IsSitState() && !(bot->GetInterruptMask() & AURA_INTERRUPT_FLAG_NOT_SEATED))
         bot->SetStandState(UNIT_STAND_STATE_STAND);
 
     bool hasMountAura = bot->HasAuraType(SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED) ||
