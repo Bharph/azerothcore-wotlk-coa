@@ -982,6 +982,47 @@ void RecordFailure(uint8 kind, uint32 spellId, uint16 reason);
 // Casts the first ability of the list that passes the strict check on the target. Returns it,
 // or nullptr when none went off. With a usage kind, why each ability failed is counted.
 
+// How long the creature a spell summons stays, looking into the spells it triggers: 0 when the
+// spell summons nothing. Totems and wards are summons without a cooldown, and a bot recast them
+// on every global cooldown while the first one was still up (Cultist Tentacle of Yogg-Saron,
+// Witch Doctor Healing Ward, jealous-sound/azerothcore-wotlk-coa#5739, #5605).
+time_t SummonSeconds(SpellInfo const* info, uint8 depth = 0)
+{
+    for (SpellEffectInfo const& effect : info->Effects)
+    {
+        if (effect.Effect == SPELL_EFFECT_SUMMON)
+        {
+            int32 const duration = info->GetMaxDuration();
+            return duration > 0 ? std::min<time_t>(duration / IN_MILLISECONDS, 120) : 30;
+        }
+        if (effect.TriggerSpell && depth < 2)
+            if (SpellInfo const* triggered = sSpellMgr->GetSpellInfo(effect.TriggerSpell))
+                if (time_t const seconds = SummonSeconds(triggered, depth + 1))
+                    return seconds;
+    }
+    return 0;
+}
+
+// How far an attack centred on its caster reaches: a cleave, a cone or a spin that hits
+// around the bot, whatever unit it is aimed at. 0 when the spell reaches its target instead.
+float CasterCentredReach(Player* bot, SpellInfo const* info)
+{
+    float reach = 0.0f;
+    for (SpellEffectInfo const& effect : info->Effects)
+    {
+        if (!effect.IsEffect() || (!IsEnemyTarget(effect.TargetA.GetTarget()) && !IsEnemyTarget(effect.TargetB.GetTarget())))
+            continue;
+
+        uint32 const a = effect.TargetA.GetTarget();
+        bool const centred = a == TARGET_SRC_CASTER || a == TARGET_UNIT_CONE_ENEMY_24 || a == TARGET_UNIT_CONE_ENEMY_104 ||
+                             a == TARGET_UNIT_CONE_ENEMY_54;
+        if (!centred)
+            return 0.0f;
+        reach = std::max(reach, effect.CalcRadius(bot));
+    }
+    return reach;
+}
+
 SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> const& spells, Unit* target,
                            uint8 usage = 255)
 {
@@ -1020,6 +1061,17 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
             benched.erase(bench);
         }
 
+        // A melee cleave or spin hits around the bot, not at its target: cast from afar it only
+        // cost a global cooldown and resources (KoX Meatsaw, Guardian Broad Sweep on the pull,
+        // jealous-sound/azerothcore-wotlk-coa#5500, #5453).
+        if (target && target != bot)
+            if (float const reach = CasterCentredReach(bot, spell.info))
+                if (!bot->IsWithinDistInMap(target, reach))
+                {
+                    note(spell.info->Id, SKIPPED_BENCHED);
+                    continue;
+                }
+
         SpellCastResult const check = StrictCheck(bot, spell.info, target);
         if (check == SPELL_CAST_OK)
         {
@@ -1042,6 +1094,8 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
             if (botAI->CastSpell(spell.info->Id, target))
             {
                 note(spell.info->Id, 0);
+                if (time_t const seconds = SummonSeconds(spell.info))
+                    benched[spell.info->Id] = now + seconds;
                 return spell.info;
             }
 
