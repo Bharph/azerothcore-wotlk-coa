@@ -85,10 +85,10 @@ AiPlayerbot.Enabled = 1
 # Enable randombot system
 AiPlayerbot.RandomBotAutologin = 1
 
-# Randombot count. 200 here: what the released package installs, and what 16 GB of memory holds
-# comfortably. 1000 needs about 32 GB.
-AiPlayerbot.MinRandomBots = 200
-AiPlayerbot.MaxRandomBots = 200
+# Randombot count. 500 here: what the released package installs, and what 16 GB of memory holds
+# comfortably. 5000 run in about 9 GB of server memory on 32 GB.
+AiPlayerbot.MinRandomBots = 500
+AiPlayerbot.MaxRandomBots = 500
 
 # Randombot accounts
 # Set to 0 to automatically calculate needed accounts based on MaxRandomBots, EnablePeriodicOnlineOffline
