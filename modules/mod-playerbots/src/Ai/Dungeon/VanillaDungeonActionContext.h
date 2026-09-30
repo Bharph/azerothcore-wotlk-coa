@@ -8,5 +8,6 @@
 #define PLAYERBOTS_VANILLADUNGEONACTIONCONTEXT_H
 
 #include "RFCActionContext.h"
+#include "SFKActionContext.h"
 
 #endif

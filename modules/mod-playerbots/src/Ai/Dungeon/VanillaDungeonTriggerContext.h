@@ -8,5 +8,6 @@
 #define PLAYERBOTS_VANILLADUNGEONTRIGGERCONTEXT_H
 
 #include "RFCTriggerContext.h"
+#include "SFKTriggerContext.h"
 
 #endif
