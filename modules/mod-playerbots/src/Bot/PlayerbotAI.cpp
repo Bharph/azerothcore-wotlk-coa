@@ -542,6 +542,19 @@ void PlayerbotAI::RejoinLfgDungeon()
         return;
 
     lfgRejoinAt = now;
+
+    // The finder picks dungeons from the DBC level range while the entrance checks
+    // dungeon_access_template: a bot below that level would be revived and sent to the door every
+    // 5 seconds forever. It leaves the group instead, so the finder can offer the seat to someone else.
+    if (DungeonProgressionRequirements const* access = sObjectMgr->GetAccessRequirement(mapId, group->GetDifficulty(false)))
+        if ((access->levelMin && bot->GetLevel() < access->levelMin) || (access->levelMax && bot->GetLevel() > access->levelMax))
+        {
+            LOG_INFO("playerbots", "Bot {} (level {}) cannot enter dungeon map {} (levels {}-{}), leaving the finder group",
+                     bot->GetName(), bot->GetLevel(), mapId, access->levelMin, access->levelMax);
+            bot->RemoveFromGroup();
+            return;
+        }
+
     if (!bot->IsAlive())
     {
         bot->ResurrectPlayer(1.0f);
