@@ -601,6 +601,9 @@ bool NewRpgBaseAction::OrganizeQuestLog()
             if (Player* member = ref->GetSource())
                 if (member != bot && !GET_PLAYERBOT_AI(member))
                     return false;
+    // An altbot's log is its player's too, grouped or not.
+    if (Player* master = botAI->GetMaster(); master && !GET_PLAYERBOT_AI(master))
+        return false;
 
     int32 freeSlotNum = 0;
 
