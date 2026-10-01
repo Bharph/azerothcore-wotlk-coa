@@ -274,6 +274,42 @@ bool WearsBuffNamed(Unit* unit, SpellInfo const* buff)
     return false;
 }
 
+// The family flags a CoA class gives the buffs a caster keeps one of on each target, read on the
+// highest rank: Woodsman's Adaptation rank 1 (800266) carries none, its other ranks carry 0x200.
+flag96 BuffFamilyFlags(SpellInfo const* buff)
+{
+    if (buff->SpellFamilyFlags)
+        return buff->SpellFamilyFlags;
+    if (SpellInfo const* last = sSpellMgr->GetSpellInfo(sSpellMgr->GetLastSpellInChain(buff->Id)))
+        return last->SpellFamilyFlags;
+    return buff->SpellFamilyFlags;
+}
+
+// Whether the unit wears another buff of the caster sharing the family flags of this one: the
+// Pyromancer's Seal of Al'ar and Seal of Alysrazor (family 30, 0x10000) and the Ranger's Woodsman's
+// and Footpad's Adaptation (family 27, 0x200) are one seal per caster, and a bot put both of each
+// pair on the same player (jealous-sound/azerothcore-wotlk-coa#5971).
+bool WearsRivalBuffFrom(Unit* unit, Unit* caster, SpellInfo const* buff)
+{
+    if (buff->SpellFamilyName <= SPELLFAMILY_PET)
+        return false;
+    flag96 const flags = BuffFamilyFlags(buff);
+    if (!flags)
+        return false;
+    for (auto const& [id, application] : unit->GetAppliedAuras())
+    {
+        Aura const* aura = application->GetBase();
+        SpellInfo const* worn = aura->GetSpellInfo();
+        if (aura->GetCasterGUID() != caster->GetGUID() || worn->IsPassive() || !application->IsPositive() ||
+            worn->SpellFamilyName != buff->SpellFamilyName ||
+            sSpellMgr->GetFirstSpellInChain(worn->Id) == sSpellMgr->GetFirstSpellInChain(buff->Id))
+            continue;
+        if (BuffFamilyFlags(worn) & flags)
+            return true;
+    }
+    return false;
+}
+
 // Whether the bot wears a stance of its own that raises its threat.
 bool WearsThreatStance(Player* bot)
 {
@@ -2135,6 +2171,11 @@ public:
                 // Nor the same buff over its greater form or the other way round, whoever cast it: a Witch
                 // Hunter bot put Knight's Edict on a player who wore Greater Knight's Edict (#5385).
                 if (WearsBuffNamed(member, spell.info))
+                    continue;
+
+                // Nor a second seal of the same caster: CoA classes give the buffs a caster keeps one of
+                // on each target the same family flag (Seals of Al'ar and Alysrazor, Adaptations, Edicts).
+                if (!(spell.kind & KIND_STANCE) && WearsRivalBuffFrom(member, bot, spell.info))
                     continue;
 
                 // The aura may come from a triggered spell under another id: do not recast
