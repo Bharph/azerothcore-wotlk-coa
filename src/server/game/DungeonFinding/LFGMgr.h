@@ -610,6 +610,8 @@ namespace lfg
         // Generic
         LFGQueue& GetQueue(ObjectGuid guid);
         LfgDungeonSet const& GetDungeonsByRandom(uint32 randomdungeon);
+        uint32 GetRandomDungeonContaining(uint32 dungeonId, Difficulty difficulty);
+        void GrantLfgDungeonReward(Player* player, Quest const* quest);
         LfgType GetDungeonType(uint32 dungeon);
 
         void SendLfgBootProposalUpdate(ObjectGuid guid, LfgPlayerBoot const& boot);
