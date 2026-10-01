@@ -5076,3 +5076,20 @@ Cluster.IsCrossrealm=0
 # CLUSTER SETTINGS END                                                                            #
 #                                                                                                 #
 ###################################################################################################
+
+#
+#    Ascension.LFG.RewardEveryCompletion
+#        Description: Pay the random-dungeon satchel for any Dungeon Finder completion,
+#                     on every run, to every player who finishes the dungeon.
+#                     Retail pays it only for a random queue and only once per day. On a
+#                     low-population realm a random queue rarely fills, so a hand-picked
+#                     run would never pay anything and an hour of play returns nothing.
+#                     When enabled, a cleared dungeon is mapped back to the random bracket
+#                     that contains it, matched on difficulty, and that bracket's reward is
+#                     granted. On repeat runs the items are granted directly, so daily
+#                     quest state is left untouched. If the player's bags are full the
+#                     reward is mailed instead of lost.
+#        Default:     1 - (Enabled)
+#                     0 - (Disabled, retail behaviour)
+
+Ascension.LFG.RewardEveryCompletion = 1

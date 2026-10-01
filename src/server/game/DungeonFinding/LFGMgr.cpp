@@ -20,6 +20,7 @@
 #include "Chat.h"
 #include "CharacterCache.h"
 #include "Common.h"
+#include "Config.h"
 #include "DBCStores.h"
 #include "DisableMgr.h"
 #include "GameEventMgr.h"
@@ -27,10 +28,12 @@
 #include "Group.h"
 #include "GroupMgr.h"
 #include "InstanceSaveMgr.h"
+#include "Item.h"
 #include "LFGGroupData.h"
 #include "LFGPlayerData.h"
 #include "LFGQueue.h"
 #include "Language.h"
+#include "Mail.h"
 #include "ObjectMgr.h"
 #include "Opcodes.h"
 #include "Player.h"
@@ -2365,13 +2368,28 @@ namespace lfg
 
             SetState(guid, LFG_STATE_FINISHED_DUNGEON);
 
-            // Give rewards only if its a random dungeon
+            // The daily satchel hangs off the random entry, not off the dungeon that was
+            // cleared. Retail pays it only for a random queue and only once per day. On a
+            // low-population realm a random queue rarely fills and a hand-picked run would
+            // never pay anything, so this realm pays the same bracket reward for any Dungeon
+            // Finder completion, on every run. Set the option to 0 for retail behaviour.
+            bool const rewardEveryCompletion = sConfigMgr->GetOption<bool>("Ascension.LFG.RewardEveryCompletion", true);
+
             LFGDungeonData const* dungeon = GetLFGDungeon(rDungeonId);
+            uint32 rewardDungeonId = rDungeonId;
 
             if (!dungeon || (dungeon->type != LFG_TYPE_RANDOM && !dungeon->seasonal))
             {
-                LOG_DEBUG("lfg", "LFGMgr::FinishDungeon: [{}] dungeon {} is not random or seasonal", guid.ToString(), rDungeonId);
-                continue;
+                LFGDungeonData const* cleared = GetLFGDungeon(dungeonId);
+                rewardDungeonId = rewardEveryCompletion && cleared
+                    ? GetRandomDungeonContaining(dungeonId, cleared->difficulty)
+                    : 0;
+
+                if (!rewardDungeonId)
+                {
+                    LOG_DEBUG("lfg", "LFGMgr::FinishDungeon: [{}] dungeon {} is not random or seasonal", guid.ToString(), rDungeonId);
+                    continue;
+                }
             }
 
             // Record dungeon cooldown for this player (the actual dungeon completed, not the random entry)
@@ -2404,7 +2422,7 @@ namespace lfg
                 if (uint8 count = GetRandomPlayersCount(player->GetGUID()))
                     player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_USE_LFD_TO_GROUP_WITH_PLAYERS, count);
 
-            LfgReward const* reward = GetRandomDungeonReward(rDungeonId, player->GetLevel());
+            LfgReward const* reward = GetRandomDungeonReward(rewardDungeonId, player->GetLevel());
             if (!reward)
                 continue;
 
@@ -2420,6 +2438,14 @@ namespace lfg
             // if we can take the quest, means that we haven't done this kind of "run", IE: First Heroic Random of Day.
             if (player->CanRewardQuest(quest, false))
                 player->RewardQuest(quest, 0, nullptr, false, true);
+            else if (rewardEveryCompletion)
+            {
+                // The daily is already taken, so the quest system would hand over the reduced
+                // repeat reward. Grant the same items directly instead, leaving daily quest
+                // state untouched, so clearing a dungeon always pays the satchel.
+                done = true;
+                GrantLfgDungeonReward(player, quest);
+            }
             else
             {
                 done = true;
@@ -2447,6 +2473,72 @@ namespace lfg
        @param[in]     randomdungeon Random dungeon id (if value = 0 will return all dungeons)
        @returns Set of dungeons that can be done.
     */
+    /**
+       Find the random dungeon entry whose group contains a specific dungeon, so a
+       hand-picked run can be paid from the bracket it belongs to.
+
+       @param[in]     dungeonId  the dungeon that was cleared
+       @param[in]     difficulty the cleared dungeon's difficulty, so normal and heroic
+                                 brackets are not mixed
+       @returns Random dungeon id with a reward attached, or 0 if none matches.
+    */
+    uint32 LFGMgr::GetRandomDungeonContaining(uint32 dungeonId, Difficulty difficulty)
+    {
+        for (auto const& itr : LfgDungeonStore)
+        {
+            LFGDungeonData const& candidate = itr.second;
+
+            if (candidate.type != LFG_TYPE_RANDOM && !candidate.seasonal)
+                continue;
+
+            if (candidate.difficulty != difficulty)
+                continue;
+
+            if (RewardMapStore.find(candidate.id) == RewardMapStore.end())
+                continue;
+
+            LfgDungeonSet const& contents = GetDungeonsByRandom(candidate.id);
+            if (contents.find(dungeonId) != contents.end())
+                return candidate.id;
+        }
+
+        return 0;
+    }
+
+    void LFGMgr::GrantLfgDungeonReward(Player* player, Quest const* quest)
+    {
+        for (uint32 i = 0; i < QUEST_REWARDS_COUNT; ++i)
+        {
+            uint32 const itemId = quest->RewardItemId[i];
+            uint32 const count = quest->RewardItemIdCount[i];
+
+            if (!itemId || !count)
+                continue;
+
+            ItemPosCountVec destination;
+            if (player->CanStoreNewItem(NULL_BAG, NULL_SLOT, destination, itemId, count) == EQUIP_ERR_OK)
+            {
+                if (Item* given = player->StoreNewItem(destination, itemId, true, Item::GenerateItemRandomPropertyId(itemId)))
+                    player->SendNewItem(given, count, true, false);
+
+                continue;
+            }
+
+            // Bags are full. Mail it rather than drop it, so a cleared dungeon is never unpaid.
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            MailDraft draft(quest->GetTitle(), "");
+
+            if (Item* mailed = Item::CreateItem(itemId, count))
+            {
+                mailed->SaveToDB(trans);
+                draft.AddItem(mailed);
+            }
+
+            draft.SendMailTo(trans, player, MailSender(MAIL_CREATURE, 0));
+            CharacterDatabase.CommitTransaction(trans);
+        }
+    }
+
     LfgDungeonSet const& LFGMgr::GetDungeonsByRandom(uint32 randomdungeon)
     {
         LFGDungeonData const* dungeon = GetLFGDungeon(randomdungeon);
