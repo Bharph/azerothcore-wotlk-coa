@@ -1538,6 +1538,20 @@ AiPlayerbot.CoaSpellReplacement = 0
 
 AiPlayerbot.CoaAttackCheckBench = 0
 
+#    AiPlayerbot.CoaInterruptCoordination
+#        Description: 1 - in a group, one bot kicks each enemy cast: the first to see it picks a bot
+#                     with a kick ready and in reach, a damage dealer before a healer before the tank,
+#                     the one that kicked longest ago first; the others hold theirs until the kick has
+#                     landed. In a dungeon a routine cast is let through when only one kick is left in
+#                     reach, kept for a heal, crowd control or long cast. Kicks are only tried on casters
+#                     they reach. Bots without a group are not affected; real players are never counted on.
+#                     0 - every bot kicks the first cast it sees, as in 1.6. Either way CoaBots.log counts
+#                     the enemy casts seen and kicked and the kicks wasted on a cast already kicked.
+#                     Read again by ".reload config".
+#        Default:     0
+
+AiPlayerbot.CoaInterruptCoordination = 0
+
 # Conquest of Azeroth specializations bots never play, by id, comma separated. A bot holding one
 # switches to another of its role, and ".playerbots coa" never recruits one.
 # Empty by default: no specialization is worth setting aside as things stand. The two that used to be

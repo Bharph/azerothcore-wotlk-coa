@@ -34,11 +34,13 @@
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
+#include <tuple>
 #include <vector>
 
-// CoaGroupTelemetry.cpp: counts a taunt, or a heal tried, in the group fight being measured.
+// CoaGroupTelemetry.cpp: counts a taunt, a heal tried, or an interrupt, in the group fight being measured.
 void CoaTelemetryNoteTaunt(Player* bot);
 void CoaTelemetryNoteHeal(Player* bot, uint32 spellId, uint16 outcome);
+void CoaTelemetryNoteInterrupt(Player* bot, bool wasted);
 
 namespace
 {
@@ -1280,6 +1282,24 @@ std::atomic<time_t> UsageLastReport{ 0 };
 // (spell id, reason) -> failures, for the kinds whose casts are diagnosed
 std::map<std::pair<uint32, uint16>, uint32> UsageFailures[USAGE_MAX];
 
+// What became of the interruptible enemy casts grouped bots saw (see InterruptClaims below), with
+// AiPlayerbot.CoaInterruptCoordination on or off, so that both can be compared on the same runs.
+struct InterruptCounters
+{
+    std::atomic<uint64> seen{ 0 };        // enemy casts a grouped bot with an interrupt ready saw
+    std::atomic<uint64> seenDanger{ 0 };  // of which heals, crowd control, summons, channels, long casts
+    std::atomic<uint64> kicked{ 0 };      // enemy casts at least one kick went to
+    std::atomic<uint64> kickedDanger{ 0 };
+    std::atomic<uint64> kicks{ 0 };       // kicks cast by grouped bots
+    std::atomic<uint64> wasted{ 0 };      // kicks at a cast another bot had already kicked
+    std::atomic<uint64> waited{ 0 };      // times a bot let the chosen one kick
+    std::atomic<uint64> takenOver{ 0 };   // the chosen bot let the hand-over pass and another kicked
+    std::atomic<uint64> heldBack{ 0 };    // routine casts let through to keep the last kick in reach
+};
+
+InterruptCounters InterruptStats;
+bool CoordinateInterrupts() { return sPlayerbotAIConfig.coaInterruptCoordination; }
+
 void RecordFailure(uint8 kind, uint32 spellId, uint16 reason)
 {
     if (kind >= USAGE_MAX)
@@ -1296,6 +1316,13 @@ void ReportUsage(time_t now)
         line += Acore::StringFormat("{}{} {}/{}", kind ? ", " : "", UsageNames[kind],
                                     Usage[kind].cast.load(), Usage[kind].tried.load());
     LOG_INFO("playerbots.coa", "coa usage since start (cast/tried): {}", line);
+
+    InterruptCounters const& kicks = InterruptStats;
+    LOG_INFO("playerbots.coa", "coa interrupt coordination {}: enemy casts seen {} ({} dangerous), kicked {} ({} dangerous), "
+             "kicks {}, on a cast already kicked {}, waited for another bot {}, taken over {}, routine casts let through {}",
+             CoordinateInterrupts() ? "on" : "off", kicks.seen.load(), kicks.seenDanger.load(), kicks.kicked.load(),
+             kicks.kickedDanger.load(), kicks.kicks.load(), kicks.wasted.load(), kicks.waited.load(),
+             kicks.takenOver.load(), kicks.heldBack.load());
 
     std::lock_guard<std::mutex> guard(UsageSpellsLock);
     // Attacks and heals list more spells: they show which rank of each spell the bots cast.
@@ -1424,32 +1451,305 @@ bool HasDispellable(Unit* unit, uint32 mask)
     return false;
 }
 
-bool IsInterruptibleCast(Unit* unit)
+// The cast of the unit an interrupt would stop, if any.
+Spell* InterruptibleSpell(Unit* unit)
 {
     if (Spell* spell = unit->GetCurrentSpell(CURRENT_GENERIC_SPELL))
         if (spell->getState() == SPELL_STATE_PREPARING &&
             (spell->GetSpellInfo()->InterruptFlags & SPELL_INTERRUPT_FLAG_INTERRUPT))
-            return true;
+            return spell;
 
     if (Spell* spell = unit->GetCurrentSpell(CURRENT_CHANNELED_SPELL))
         if (spell->getState() == SPELL_STATE_CASTING &&
             (spell->GetSpellInfo()->ChannelInterruptFlags & CHANNEL_INTERRUPT_FLAG_INTERRUPT))
-            return true;
+            return spell;
 
+    return nullptr;
+}
+
+bool IsInterruptibleCast(Unit* unit) { return InterruptibleSpell(unit) != nullptr; }
+
+/*
+ * Interrupt coordination (AiPlayerbot.CoaInterruptCoordination).
+ *
+ * Every bot of a group kicked the first interruptible cast it saw, the moment its own tick came.
+ * An instant kick lands at once and the others then see no cast, but a kick that travels (Shield
+ * of Denial, Chainwhip, Burrow Bolt, Toxic Dart, Hammer of the Law) leaves the cast running for
+ * a few hundred milliseconds, and every other bot ready at that moment spends its kick on it too.
+ * And whoever kicked first was whoever ticked first: the tank as often as anyone, on a two second
+ * Frostbolt as readily as on a heal, so that nobody had a kick left for the heal that followed.
+ * 6 out of 7 tries also came to nothing (17 182 kicks for 114 381 tries on 01/10), mostly
+ * SPELL_FAILED_OUT_OF_RANGE: a five yard kick tried on casters up to 30 yards away.
+ *
+ * With coordination on, the first grouped bot that sees a cast chooses who kicks it among the
+ * bots of its group on the same map instance that are fighting and have a kick ready within
+ * reach: a damage dealer before a healer before the tank, and among them the one that kicked
+ * longest ago. The others leave that cast alone until the kick has landed, or until the chosen
+ * bot let its hand-over time pass (stunned, busy, moved off) and one of them takes it over. In a
+ * dungeon a routine cast is let through when only one kick is left in reach, kept for the heal,
+ * crowd control or long cast that follows. A bot without a group is left as it was; a real
+ * player is never counted on, as nothing tells what they mean to kick.
+ *
+ * Claims are kept by map instance and caster: creature guids are only unique within a map. A
+ * group can spread over several maps, each updated by its own thread, hence the lock; it is only
+ * taken while an interruptible enemy cast is in view of a grouped bot that has a kick ready.
+ */
+constexpr uint32 InterruptHandOverMs = 600;    // how long the chosen bot has to kick before another may
+constexpr uint32 InterruptLandMarginMs = 300;  // after a kick should have landed: the cast is then over or missed
+constexpr int32 DangerousCastMs = 2500;        // a longer cast is taken for a big hit
+
+struct InterruptClaim
+{
+    uint32 spellId = 0;   // the enemy cast
+    ObjectGuid bot;       // the bot that is to kick it, or that did; empty when it is let through
+    uint32 handOver = 0;  // getMSTime() after which another bot may take it
+    uint32 until = 0;     // getMSTime() after which the claim is dropped
+    bool danger = false;
+    bool kicked = false;
+};
+
+using CasterKey = std::tuple<uint32, uint32, uint64>;  // map, instance, caster guid
+std::mutex InterruptClaimsLock;
+std::map<CasterKey, InterruptClaim> InterruptClaims;
+
+// Whether `when` (a getMSTime() value) is reached, through the wrap of the millisecond clock.
+bool Passed(uint32 now, uint32 when) { return int32(now - when) >= 0; }
+
+CasterKey KeyOf(Unit* caster)
+{
+    return { caster->GetMapId(), caster->GetInstanceId(), caster->GetGUID().GetRawValue() };
+}
+
+// Counts a claim that is dropped: one enemy cast seen, and whether it was kicked.
+void Retire(InterruptClaim const& claim)
+{
+    ++InterruptStats.seen;
+    InterruptStats.seenDanger += claim.danger;
+    InterruptStats.kicked += claim.kicked;
+    InterruptStats.kickedDanger += claim.kicked && claim.danger;
+}
+
+// Under InterruptClaimsLock. A handful of entries at most: the casts in progress right now.
+void DropSpentClaims(uint32 now)
+{
+    for (auto itr = InterruptClaims.begin(); itr != InterruptClaims.end();)
+        if (Passed(now, itr->second.until))
+        {
+            Retire(itr->second);
+            itr = InterruptClaims.erase(itr);
+        }
+        else
+            ++itr;
+}
+
+// Whether letting this cast through hurts the group more than an ordinary hit: a heal, crowd
+// control, a summon, a shield, a channel, or a long cast that is likely a big hit.
+bool IsDangerousCast(Spell* cast)
+{
+    SpellInfo const* info = cast->GetSpellInfo();
+    if (info->IsChanneled() || cast->GetCastTime() >= DangerousCastMs)
+        return true;
+
+    for (SpellEffectInfo const& effect : info->Effects)
+    {
+        switch (effect.Effect)
+        {
+            case SPELL_EFFECT_HEAL: case SPELL_EFFECT_HEAL_PCT: case SPELL_EFFECT_HEAL_MAX_HEALTH:
+            case SPELL_EFFECT_SUMMON:
+                return true;
+            default:
+                break;
+        }
+        if (!effect.IsAura())
+            continue;
+        switch (effect.ApplyAuraName)
+        {
+            case SPELL_AURA_PERIODIC_HEAL: case SPELL_AURA_MOD_STUN: case SPELL_AURA_MOD_FEAR:
+            case SPELL_AURA_MOD_CONFUSE: case SPELL_AURA_MOD_CHARM: case SPELL_AURA_MOD_POSSESS:
+            case SPELL_AURA_MOD_SILENCE: case SPELL_AURA_MOD_PACIFY_SILENCE: case SPELL_AURA_MOD_ROOT:
+            case SPELL_AURA_SCHOOL_ABSORB: case SPELL_AURA_SCHOOL_IMMUNITY:
+                return true;
+            default:
+                break;
+        }
+    }
     return false;
+}
+
+// Whether this kick reaches the caster from where the bot stands. A kick with no range of its
+// own hits around the bot (Gust of Wind, Ghastly Screech); five yards or less is a melee kick.
+bool KickReaches(Player* bot, SpellInfo const* kick, Unit* caster)
+{
+    float range = kick->GetMaxRange(false, bot);
+    if (!range)
+        range = CasterCentredReach(bot, kick);
+    if (range <= NOMINAL_MELEE_RANGE)
+        return bot->IsWithinMeleeRange(caster);
+    return bot->IsWithinCombatRange(caster, range);
+}
+
+// A kick the bot has ready that reaches the caster. Also read for other bots of the group, which
+// is safe for members on the bot's own map instance: the same thread updates them.
+SpellInfo const* ReadyKickFor(PlayerbotAI* ai, Player* member, Unit* caster)
+{
+    auto const* context = dynamic_cast<CoaAiObjectContext const*>(ai->GetAiObjectContext());
+    if (!context)
+        return nullptr;
+
+    time_t const now = time(nullptr);
+    for (Usable const& spell : KnownAbilities(member, [](uint16 kind) { return (kind & KIND_INTERRUPT) != 0; }))
+    {
+        SpellInfo const* const info = EffectiveSpell(member, spell.info);
+        if (member->HasSpellCooldown(info->Id) || IsBenched(context->benchedSpells, spell.info->Id, now) ||
+            IsBenched(context->benchedSpells, info->Id, now))
+            continue;
+        if (KickReaches(member, info, caster))
+            return spell.info;
+    }
+    return nullptr;
+}
+
+// The bot of the group that should kick this cast, and how many could have.
+Player* ChooseKicker(Player* bot, Unit* caster, uint32& ready)
+{
+    Player* best = nullptr;
+    int32 bestRank = 0;
+    uint32 bestLast = 0;
+    ready = 0;
+    for (GroupReference* ref = bot->GetGroup()->GetFirstMember(); ref; ref = ref->next())
+    {
+        Player* member = ref->GetSource();
+        if (!member || !member->IsAlive() || !member->IsInCombat() || !OnSameInstance(bot, member) ||
+            !ClassHas(member, KIND_INTERRUPT))
+            continue;
+        PlayerbotAI* ai = GET_PLAYERBOT_AI(member);
+        if (!ai || !ReadyKickFor(ai, member, caster))
+            continue;
+
+        ++ready;
+        CoaRole const role = GetCoaRole(member);
+        int32 const rank = role == CoaRole::Tank ? 2 : role == CoaRole::Heal ? 1 : 0;
+        uint32 const last = static_cast<CoaAiObjectContext*>(ai->GetAiObjectContext())->lastInterrupt;
+        if (!best || rank < bestRank || (rank == bestRank && last < bestLast))
+        {
+            best = member;
+            bestRank = rank;
+            bestLast = last;
+        }
+    }
+    return best;
+}
+
+// Whether this grouped bot is the one to kick the cast. Every grouped bot reports the casts it
+// sees, coordination on or off, so that the counters compare the two.
+bool MayKick(Player* bot, Unit* caster, Spell* cast)
+{
+    uint32 const now = getMSTime();
+    uint32 const spellId = cast->GetSpellInfo()->Id;
+    uint32 const remaining = uint32(std::max(cast->GetCastTimeRemaining(), 0));
+
+    std::lock_guard<std::mutex> guard(InterruptClaimsLock);
+    DropSpentClaims(now);
+    auto itr = InterruptClaims.find(KeyOf(caster));
+    if (itr != InterruptClaims.end() && itr->second.spellId != spellId)
+    {
+        Retire(itr->second);
+        InterruptClaims.erase(itr);
+        itr = InterruptClaims.end();
+    }
+
+    if (itr != InterruptClaims.end())
+    {
+        InterruptClaim& claim = itr->second;
+        if (!CoordinateInterrupts() || claim.bot == bot->GetGUID())
+            return true;
+        if (claim.bot.IsEmpty())  // let through, kept for a worse cast
+            return false;
+        if (claim.kicked || !Passed(now, claim.handOver))
+        {
+            ++InterruptStats.waited;
+            return false;
+        }
+        claim.bot = bot->GetGUID();
+        claim.handOver = now + InterruptHandOverMs;
+        ++InterruptStats.takenOver;
+        return true;
+    }
+
+    InterruptClaim claim;
+    claim.spellId = spellId;
+    claim.danger = IsDangerousCast(cast);
+    claim.until = now + remaining + InterruptLandMarginMs;
+    if (!CoordinateInterrupts())
+    {
+        InterruptClaims.emplace(KeyOf(caster), claim);
+        return true;
+    }
+
+    uint32 ready = 0;
+    Player* const chosen = ChooseKicker(bot, caster, ready);
+    if (!claim.danger && ready < 2 && bot->GetMap()->IsDungeon())
+        ++InterruptStats.heldBack;
+    else
+    {
+        claim.bot = chosen ? chosen->GetGUID() : bot->GetGUID();
+        claim.handOver = now + std::min(InterruptHandOverMs, remaining / 2);
+    }
+    InterruptClaims.emplace(KeyOf(caster), claim);
+    return claim.bot == bot->GetGUID();
+}
+
+// A grouped bot kicked: the cast is taken care of until the kick has landed. True when another
+// bot had already kicked that very cast, a kick wasted.
+bool NoteKick(Player* bot, Unit* caster, uint32 enemySpellId, SpellInfo const* kick)
+{
+    uint32 const now = getMSTime();
+    uint32 const travel = kick->Speed > 0.0f ? uint32(bot->GetDistance(caster) / kick->Speed * IN_MILLISECONDS) : 0;
+
+    std::lock_guard<std::mutex> guard(InterruptClaimsLock);
+    InterruptClaim& claim = InterruptClaims[KeyOf(caster)];
+    if (claim.spellId != enemySpellId)
+    {
+        if (claim.spellId)
+            Retire(claim);
+        claim = InterruptClaim();
+        claim.spellId = enemySpellId;
+    }
+
+    bool const wasted = claim.kicked && claim.bot != bot->GetGUID() && !Passed(now, claim.until);
+    claim.bot = bot->GetGUID();
+    claim.kicked = true;
+    claim.until = now + travel + InterruptLandMarginMs;
+    ++InterruptStats.kicks;
+    InterruptStats.wasted += wasted;
+    return wasted;
+}
+
+// Whether the bot should go for this unit's cast: with coordination, only a cast one of its
+// kicks reaches, and only if it is the bot's turn.
+bool WorthKicking(PlayerbotAI* botAI, Player* bot, Unit* unit)
+{
+    if (!unit || !unit->IsAlive())
+        return false;
+    Spell* const cast = InterruptibleSpell(unit);
+    if (!cast)
+        return false;
+    if (CoordinateInterrupts() && !ReadyKickFor(botAI, bot, unit))
+        return false;
+    return !bot->GetGroup() || MayKick(bot, unit, cast);
 }
 
 // The enemy to interrupt: the current target when it casts, else an attacker that does.
 Unit* FindCaster(PlayerbotAI* botAI, Player* bot)
 {
     Unit* target = botAI->GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
-    if (target && target->IsAlive() && IsInterruptibleCast(target))
+    if (WorthKicking(botAI, bot, target))
         return target;
 
     for (ObjectGuid const guid : botAI->GetAiObjectContext()->GetValue<GuidVector>("attackers")->Get())
     {
         Unit* attacker = botAI->GetUnit(guid);
-        if (attacker && attacker->IsAlive() && bot->IsWithinDistInMap(attacker, 30.0f) && IsInterruptibleCast(attacker))
+        if (attacker && attacker != target && bot->IsWithinDistInMap(attacker, 30.0f) && WorthKicking(botAI, bot, attacker))
             return attacker;
     }
 
@@ -2067,9 +2367,18 @@ public:
         if (!caster)
             return false;
 
-        return RecordUsage(USAGE_INTERRUPT,
+        // Read before the kick, which ends the cast.
+        uint32 const enemySpellId = InterruptibleSpell(caster)->GetSpellInfo()->Id;
+        SpellInfo const* kick =
             CastFirst(botAI, bot, KnownAbilities(bot, [](uint16 kind) { return (kind & KIND_INTERRUPT) != 0; }), caster,
-                      LoopUsage(USAGE_INTERRUPT)));
+                      LoopUsage(USAGE_INTERRUPT));
+        if (kick && bot->GetGroup())
+        {
+            static_cast<CoaAiObjectContext*>(botAI->GetAiObjectContext())->lastInterrupt = getMSTime();
+            CoaTelemetryNoteInterrupt(bot, NoteKick(bot, caster, enemySpellId, kick));
+        }
+
+        return RecordUsage(USAGE_INTERRUPT, kick);
     }
 
     bool isUseful() override
@@ -2230,8 +2539,11 @@ public:
 
     bool IsActive() override
     {
-        return ClassHas(bot, KIND_INTERRUPT) && FindCaster(botAI, bot) &&
-               HasReadyAbility(botAI, bot,[](uint16 kind) { return (kind & KIND_INTERRUPT) != 0; });
+        // The kick first: FindCaster reports the casts it sees to the group (MayKick), which only
+        // counts those a bot with a kick ready saw.
+        return ClassHas(bot, KIND_INTERRUPT) &&
+               HasReadyAbility(botAI, bot,[](uint16 kind) { return (kind & KIND_INTERRUPT) != 0; }) &&
+               FindCaster(botAI, bot);
     }
 };
 
