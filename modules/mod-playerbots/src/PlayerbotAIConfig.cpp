@@ -742,6 +742,7 @@ bool PlayerbotAIConfig::Initialize()
     coaThreatHold = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaThreatHold", 0);
     coaAttackLoop = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaAttackLoop", false);
     coaSpellReplacement = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaSpellReplacement", false);
+    coaAttackCheckBench = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaAttackCheckBench", false);
     coaTankOpenerSeconds = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaTankOpenerSeconds", 2);
     coaStatusFile = sConfigMgr->GetOption<std::string>("AiPlayerbot.CoaStatusFile", "");
     coaStatusIntervalSeconds = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaStatusIntervalSeconds", 5));

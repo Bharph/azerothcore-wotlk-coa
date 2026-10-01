@@ -1078,6 +1078,10 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
     // Heals are followed spell by spell in a measured group fight, skipped ones included.
     // USAGE_HEAL, USAGE_GROUP_HEAL and USAGE_HOT, whose enum comes further down.
     bool const healing = usage == 2 || usage == 3 || usage == 4;
+    // USAGE_ATTACK: the attack loop runs again on the next tick, and a proc, a target aura or a
+    // few points of rage come back sooner than a bench ends. As in 1.6, an attack turned down by
+    // the check is only skipped, unless AiPlayerbot.CoaAttackCheckBench.
+    bool const retryAttack = usage == 0 && !sPlayerbotAIConfig.coaAttackCheckBench;
     auto note = [bot, healing](uint32 spellId, uint16 outcome)
     {
         if (healing)
@@ -1182,12 +1186,12 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
         {
             // Waiting on its marker (see CoaHealAction::AddPrerequisites): not set aside.
         }
-        else if (IsLastingFailure(check))
+        else if (IsLastingFailure(check) && (!retryAttack || check == SPELL_FAILED_STUNNED))
             benched[info->Id] = now + SpellBenchSeconds;
         // Out of mana, energy or rage: asking again on the very next tick changes nothing, and
         // with the spell set aside the action reports itself useless, so the bot does something
         // it can afford instead of spending its ticks being turned down.
-        else if (check == SPELL_FAILED_NO_POWER)
+        else if (check == SPELL_FAILED_NO_POWER && !retryAttack)
             benched[info->Id] = now + NoPowerBenchSeconds;
 
         if (usage != 255)

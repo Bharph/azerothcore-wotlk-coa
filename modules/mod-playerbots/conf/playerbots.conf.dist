@@ -1528,6 +1528,16 @@ AiPlayerbot.CoaAttackLoop = 0
 
 AiPlayerbot.CoaSpellReplacement = 0
 
+#    AiPlayerbot.CoaAttackCheckBench
+#        Description: with AiPlayerbot.CoaAttackLoop = 1, what becomes of an attack the strict check turns
+#                     down (target or caster aura missing, bad target, short of rage, energy or mana).
+#                     0 - skipped for this tick only, as in 1.6: the next tick tries it again.
+#                     1 - set aside 20 seconds (5 when short of power), as heals are.
+#                     A stunned bot sets its attacks aside either way.
+#        Default:     0
+
+AiPlayerbot.CoaAttackCheckBench = 0
+
 # Conquest of Azeroth specializations bots never play, by id, comma separated. A bot holding one
 # switches to another of its role, and ".playerbots coa" never recruits one.
 # Empty by default: no specialization is worth setting aside as things stand. The two that used to be
