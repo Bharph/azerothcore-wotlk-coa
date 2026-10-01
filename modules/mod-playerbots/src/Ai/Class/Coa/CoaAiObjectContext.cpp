@@ -60,7 +60,8 @@ enum AbilityKind : uint16
     KIND_INTERRUPT  = 0x0800,
     KIND_CONTROL    = 0x1000,  // stuns, fears, polymorphs... never aimed at a group member
     KIND_STANCE     = 0x2000,  // a form or stance on the caster that never expires
-    KIND_RESURRECT  = 0x4000   // brings a dead ally back
+    KIND_RESURRECT  = 0x4000,  // brings a dead ally back
+    KIND_SHARE_HARM = 0x8000   // the caster takes part of the damage its target takes
 };
 
 /*
@@ -342,6 +343,9 @@ void Classify(SpellInfo const* info, CoaAbility& ability, uint8 depth = 0)
                 ability.kind |= KIND_HOT;
         }
 
+        if (aura && !self && effect.ApplyAuraName == SPELL_AURA_SPLIT_DAMAGE_PCT)
+            ability.kind |= KIND_SHARE_HARM;
+
         if (effect.Effect == SPELL_EFFECT_ATTACK_ME || (aura && effect.ApplyAuraName == SPELL_AURA_MOD_TAUNT))
             ability.kind |= KIND_TAUNT;
 
@@ -382,6 +386,13 @@ void Classify(SpellInfo const* info, CoaAbility& ability, uint8 depth = 0)
             if (SpellInfo const* triggered = sSpellMgr->GetSpellInfo(effect.TriggerSpell))
                 Classify(triggered, ability, depth + 1);
     }
+
+    // A heal that also moves part of the target's damage onto the caster is no heal to spread around:
+    // Earthmother's Binding (Primalist, 805107) passes 30% of what the target takes to the caster
+    // (807858), and a Primalist bot binding itself to the tank in the middle of a pack died in two
+    // blows (jealous-sound/azerothcore-wotlk-coa#5844, #5846).
+    if (!depth && (ability.kind & KIND_SHARE_HARM))
+        ability.kind &= ~(KIND_HEAL | KIND_GROUP_HEAL | KIND_HOT);
 
     // Un soin mis de côté à la main (AiPlayerbot.CoaHealsExcluded) : il garde tous ses autres
     // effets, il cesse seulement de compter comme un soin. Le bot ne le mettra donc plus dans sa
