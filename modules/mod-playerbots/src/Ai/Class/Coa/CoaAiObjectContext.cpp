@@ -532,6 +532,29 @@ bool IsFriendlyDispel(uint16 kind)
     return (kind & KIND_DISPEL) && !(kind & (KIND_CONTROL | KIND_HOSTILE));
 }
 
+// The spell the bot will really cast. Ascension swaps a spell for another while a proc is up
+// (Malefic Wrath -> Malefic Arrow) and PlayerbotAI::CastSpell follows the swap, so the check, the
+// cooldown and the bench have to bear on the replacement; the cast keeps the listed id, or the proc
+// is not consumed. AiPlayerbot.CoaSpellReplacement (StevenLeclerc 9ee20729).
+SpellInfo const* EffectiveSpell(Player* bot, SpellInfo const* info)
+{
+    if (!sPlayerbotAIConfig.coaSpellReplacement)
+        return info;
+
+    uint32 const replacement = bot->GetTemporarySpellReplacement(info->Id);
+    if (replacement && replacement != info->Id)
+        if (SpellInfo const* swapped = sSpellMgr->GetSpellInfo(replacement))
+            return swapped;
+
+    return info;
+}
+
+bool IsBenched(std::unordered_map<uint32, time_t> const& benched, uint32 spellId, time_t now)
+{
+    auto const bench = benched.find(spellId);
+    return bench != benched.end() && bench->second > now;
+}
+
 // Whether the bot knows an ability for which `wanted(kind)` is true and that is off cooldown:
 // actions only run when they have something to cast, which keeps the usage counters honest.
 template <typename Filter>
@@ -542,8 +565,9 @@ bool HasReadyAbility(PlayerbotAI* botAI, Player* bot, Filter wanted)
 
     for (Usable const& spell : KnownAbilities(bot, wanted))
     {
-        auto const bench = benched.find(spell.info->Id);
-        if (!bot->HasSpellCooldown(spell.info->Id) && (bench == benched.end() || bench->second <= now))
+        SpellInfo const* const info = EffectiveSpell(bot, spell.info);
+        if (!bot->HasSpellCooldown(info->Id) && !IsBenched(benched, spell.info->Id, now) &&
+            (info == spell.info || !IsBenched(benched, info->Id, now)))
             return true;
     }
 
@@ -585,6 +609,9 @@ bool IsAttack(uint16 kind, bool tank)
  */
 SpellCastResult StrictCheck(Player* bot, SpellInfo const* info, Unit* target)
 {
+    // The spell prepare() will see, replacement included: its cost and range, not the base spell's.
+    info = EffectiveSpell(bot, info);
+
     ObjectGuid const oldSel = bot->GetTarget();
 
     // Spell::CheckCast reads m_powerCost, and that is only worked out in Spell::prepare: a check run
@@ -617,6 +644,9 @@ constexpr uint16 FAILURE_SITTING = 1003;  // refused while sitting (eating, drin
 constexpr uint16 FAILURE_CASTING = 1004;  // refused while still casting a heal or buff
 constexpr uint16 SKIPPED_COOLDOWN = 2000;  // not tried: on cooldown (group fight log only)
 constexpr uint16 SKIPPED_BENCHED = 2001;   // not tried: set aside after an earlier failure (group fight log only)
+
+// Whether a cast of this usage kind drops the attack in progress: an attack never cuts off another.
+bool PreemptsAttackCast(uint8 usage);
 
 // A bot busy casting an attack drops it for a heal, dispel, defensive, taunt or interrupt. A heal
 // or buff in progress is kept, or heals would keep cutting each other off.
@@ -1045,57 +1075,71 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
 
     for (Usable const& spell : spells)
     {
+        // What the bot will really cast (see EffectiveSpell): cooldown, cast time, bench and the
+        // failure log go by the replacement, the cast itself by the listed id.
+        SpellInfo const* const info = EffectiveSpell(bot, spell.info);
+
         // A spell on cooldown would only fail with SPELL_FAILED_NOT_READY.
-        if (bot->HasSpellCooldown(spell.info->Id))
+        if (bot->HasSpellCooldown(info->Id))
         {
             note(spell.info->Id, SKIPPED_COOLDOWN);
             continue;
         }
 
         // The global cooldown blocks every spell alike: try again on a later tick.
-        if (bot->GetGlobalCooldownMgr().HasGlobalCooldown(spell.info))
+        if (bot->GetGlobalCooldownMgr().HasGlobalCooldown(info))
             return nullptr;
 
-        auto const bench = benched.find(spell.info->Id);
-        if (bench != benched.end())
+        // The bench is posted under the id that was checked: a failure of a short-lived replacement
+        // never sidelines the listed spell. Both ids are read, spent entries dropped.
+        bool stillBenched = false;
+        for (uint32 const benchedId : { spell.info->Id, info->Id })
         {
-            if (bench->second > now)
-            {
-                note(spell.info->Id, SKIPPED_BENCHED);
+            auto const bench = benched.find(benchedId);
+            if (bench == benched.end())
                 continue;
-            }
-            benched.erase(bench);
+            if (bench->second > now)
+                stillBenched = true;
+            else
+                benched.erase(bench);
+            if (info == spell.info)
+                break;
+        }
+        if (stillBenched)
+        {
+            note(spell.info->Id, SKIPPED_BENCHED);
+            continue;
         }
 
         // A melee cleave or spin hits around the bot, not at its target: cast from afar it only
         // cost a global cooldown and resources (KoX Meatsaw, Guardian Broad Sweep on the pull,
         // jealous-sound/azerothcore-wotlk-coa#5500, #5453).
         if (target && target != bot)
-            if (float const reach = CasterCentredReach(bot, spell.info))
+            if (float const reach = CasterCentredReach(bot, info))
                 if (!bot->IsWithinDistInMap(target, reach))
                 {
                     note(spell.info->Id, SKIPPED_BENCHED);
                     continue;
                 }
 
-        SpellCastResult const check = StrictCheck(bot, spell.info, target);
+        SpellCastResult const check = StrictCheck(bot, info, target);
         if (check == SPELL_CAST_OK)
         {
             // PlayerbotAI::CastSpell refuses a spell with a cast time while the bot moves: stop
             // now and cast it on a later tick, once standing still.
-            if (bot->isMoving() && spell.info->CalcCastTime(bot))
+            if (bot->isMoving() && info->CalcCastTime(bot))
             {
                 // Out of combat nothing is urgent: stopping the follow for a top-up heal that the next tick
                 // might not cast made bots stutter behind their master (jealous-sound/azerothcore-wotlk-coa#5595).
                 if (bot->IsInCombat())
                     bot->StopMoving();
                 if (usage != 255)
-                    RecordFailure(usage, spell.info->Id, FAILURE_MOVING);
+                    RecordFailure(usage, info->Id, FAILURE_MOVING);
                 note(spell.info->Id, FAILURE_MOVING);
                 continue;
             }
 
-            if (usage != 255)
+            if (PreemptsAttackCast(usage))
                 DropAttackCast(bot);
 
             bool const sitting = !bot->IsStandState();
@@ -1103,7 +1147,7 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
             if (botAI->CastSpell(spell.info->Id, target))
             {
                 note(spell.info->Id, 0);
-                if (time_t const seconds = SummonSeconds(spell.info))
+                if (time_t const seconds = SummonSeconds(info))
                     benched[spell.info->Id] = now + seconds;
                 return spell.info;
             }
@@ -1112,10 +1156,10 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
             // resources when the cast is prepared): leave it aside briefly so the next ability
             // of the list gets its turn instead of this one failing every tick.
             if (!sitting && !casting)
-                benched[spell.info->Id] = now + RefusedBenchSeconds;
+                benched[info->Id] = now + RefusedBenchSeconds;
 
             if (usage != 255)
-                RecordFailure(usage, spell.info->Id, sitting ? FAILURE_SITTING : casting ? FAILURE_CASTING : FAILURE_REFUSED);
+                RecordFailure(usage, info->Id, sitting ? FAILURE_SITTING : casting ? FAILURE_CASTING : FAILURE_REFUSED);
             note(spell.info->Id, sitting ? FAILURE_SITTING : casting ? FAILURE_CASTING : FAILURE_REFUSED);
             continue;
         }
@@ -1123,20 +1167,20 @@ SpellInfo const* CastFirst(PlayerbotAI* botAI, Player* bot, std::vector<Usable> 
         // one: it leaves the form and heals on the next tick, instead of setting its heals aside.
         else if (check == SPELL_FAILED_NOT_SHAPESHIFT && healing && bot->HasAuraType(SPELL_AURA_MOD_SHAPESHIFT))
             bot->RemoveAurasByType(SPELL_AURA_MOD_SHAPESHIFT);
-        else if (check == SPELL_FAILED_CASTER_AURASTATE && spell.info->CasterAuraSpell)
+        else if (check == SPELL_FAILED_CASTER_AURASTATE && info->CasterAuraSpell)
         {
             // Waiting on its marker (see CoaHealAction::AddPrerequisites): not set aside.
         }
         else if (IsLastingFailure(check))
-            benched[spell.info->Id] = now + SpellBenchSeconds;
+            benched[info->Id] = now + SpellBenchSeconds;
         // Out of mana, energy or rage: asking again on the very next tick changes nothing, and
         // with the spell set aside the action reports itself useless, so the bot does something
         // it can afford instead of spending its ticks being turned down.
         else if (check == SPELL_FAILED_NO_POWER)
-            benched[spell.info->Id] = now + NoPowerBenchSeconds;
+            benched[info->Id] = now + NoPowerBenchSeconds;
 
         if (usage != 255)
-            RecordFailure(usage, spell.info->Id, uint16(check));
+            RecordFailure(usage, info->Id, uint16(check));
         note(spell.info->Id, uint16(check));
     }
 
@@ -1158,6 +1202,19 @@ constexpr char const* UsageNames[USAGE_MAX] =
 {
     "attack", "aoe", "heal", "group heal", "hot", "taunt", "defensive", "dispel", "interrupt", "buff"
 };
+
+bool PreemptsAttackCast(uint8 usage)
+{
+    return usage != 255 && usage != USAGE_ATTACK && usage != USAGE_AOE;
+}
+
+// Usage kind passed to CastFirst by the area attack, defensive and interrupt actions: none in the
+// 1.6 loop, their own with AiPlayerbot.CoaAttackLoop, so that they drop an attack cast and log why
+// they fail.
+uint8 LoopUsage(UsageKind kind)
+{
+    return sPlayerbotAIConfig.coaAttackLoop ? uint8(kind) : uint8(255);
+}
 
 struct UsageCounter
 {
@@ -1209,7 +1266,8 @@ void ReportUsage(time_t now)
     // Why heals and taunts fail: spell (id) reason xcount. Reasons are SpellCastResult values,
     // "refused" when CastSpell turned down a spell the check accepted, "nothing" when no
     // ability was left to try.
-    for (UsageKind kind : { USAGE_HEAL, USAGE_GROUP_HEAL, USAGE_HOT, USAGE_TAUNT, USAGE_DISPEL })
+    for (UsageKind kind : { USAGE_HEAL, USAGE_GROUP_HEAL, USAGE_HOT, USAGE_TAUNT, USAGE_DISPEL,
+                            USAGE_ATTACK, USAGE_AOE, USAGE_DEFENSIVE, USAGE_INTERRUPT })
     {
         std::vector<std::pair<std::pair<uint32, uint16>, uint32>> top(UsageFailures[kind].begin(), UsageFailures[kind].end());
         if (top.empty())
@@ -1379,6 +1437,9 @@ public:
         if (usable.empty())
             return false;
 
+        if (sPlayerbotAIConfig.coaAttackLoop)
+            return AttackThroughCastFirst(usable, target, saveMana);
+
         time_t const now = time(nullptr);
 
         // Rotate through the abilities, starting after the last one that went off, so a
@@ -1426,6 +1487,35 @@ public:
     }
 
 private:
+    // AiPlayerbot.CoaAttackLoop (StevenLeclerc 9ee20729): the attack goes through CastFirst like the
+    // other actions. The 1.6 loop below benches a spell for a minute after three refusals by
+    // PlayerbotAI::CastSpell, strikes never decaying, while CastSpell also refuses for reasons that
+    // pass in a tick (moving with a cast time, sitting, casting): a ranged bot moving all fight lost
+    // its main spell. CastFirst stops the bot, benches 8 seconds and logs why; it also waits for
+    // melee reach before a cleave and does not recast a summon while it is up.
+    bool AttackThroughCastFirst(std::vector<Usable> usable, Unit* target, bool saveMana)
+    {
+        if (saveMana)
+            DropManaSpells(bot, usable);
+        if (usable.empty())
+            return RecordUsage(USAGE_ATTACK, nullptr);
+
+        // Start after the last ability that went off, so the whole kit gets used.
+        size_t const start = next % usable.size();
+        std::rotate(usable.begin(), usable.begin() + start, usable.end());
+
+        SpellInfo const* const cast = CastFirst(botAI, bot, usable, target, USAGE_ATTACK);
+        if (cast)
+        {
+            auto const itr = std::find_if(usable.begin(), usable.end(),
+                [cast](Usable const& spell) { return spell.info == cast; });
+            if (itr != usable.end())
+                next = start + size_t(std::distance(usable.begin(), itr)) + 1;
+        }
+
+        return RecordUsage(USAGE_ATTACK, cast);
+    }
+
     static constexpr uint8 MaxStrikes = 3;
     static constexpr time_t BenchSeconds = 60;
 
@@ -1458,7 +1548,7 @@ public:
         if (SavingManaForHeals(bot))
             DropManaSpells(bot, spells);
 
-        return RecordUsage(USAGE_AOE, CastFirst(botAI, bot, spells, target));
+        return RecordUsage(USAGE_AOE, CastFirst(botAI, bot, spells, target, LoopUsage(USAGE_AOE)));
     }
 
     bool isUseful() override
@@ -1860,7 +1950,8 @@ public:
     bool Execute(Event /*event*/) override
     {
         SpellInfo const* cast =
-            CastFirst(botAI, bot, KnownAbilities(bot, [](uint16 kind) { return (kind & KIND_DEFENSIVE) != 0; }), bot);
+            CastFirst(botAI, bot, KnownAbilities(bot, [](uint16 kind) { return (kind & KIND_DEFENSIVE) != 0; }), bot,
+                      LoopUsage(USAGE_DEFENSIVE));
         if (!cast)
         {
             std::vector<Usable> heals = KnownAbilities(bot, [](uint16 kind)
@@ -1868,7 +1959,7 @@ public:
             if (SavingManaForHeals(bot))
                 CheapestFirst(bot, heals);
 
-            cast = CastFirst(botAI, bot, heals, bot);
+            cast = CastFirst(botAI, bot, heals, bot, LoopUsage(USAGE_DEFENSIVE));
         }
 
         return RecordUsage(USAGE_DEFENSIVE, cast);
@@ -1926,7 +2017,8 @@ public:
             return false;
 
         return RecordUsage(USAGE_INTERRUPT,
-            CastFirst(botAI, bot, KnownAbilities(bot, [](uint16 kind) { return (kind & KIND_INTERRUPT) != 0; }), caster));
+            CastFirst(botAI, bot, KnownAbilities(bot, [](uint16 kind) { return (kind & KIND_INTERRUPT) != 0; }), caster,
+                      LoopUsage(USAGE_INTERRUPT)));
     }
 
     bool isUseful() override

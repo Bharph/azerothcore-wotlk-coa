@@ -407,6 +407,8 @@ public:
     bool coaRecruitSameFaction;
     bool coaBotSurname;
     uint32 coaThreatHold;
+    bool coaAttackLoop;
+    bool coaSpellReplacement;
     uint32 coaTankOpenerSeconds;
     std::string coaStatusFile;
     uint32 coaStatusIntervalSeconds;

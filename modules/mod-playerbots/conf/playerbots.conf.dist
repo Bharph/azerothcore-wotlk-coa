@@ -1511,6 +1511,23 @@ AiPlayerbot.CoaTankOpenerSeconds = 2
 
 AiPlayerbot.CoaThreatHold = 0
 
+#    AiPlayerbot.CoaAttackLoop
+#        Description: 1 - a CoA bot attacks through the same cast path as its heals: a spell refused for
+#                     a passing reason (moving, sitting, casting) is set aside 8 seconds instead of a
+#                     minute after three refusals, cleaves wait for melee reach, summons are not recast
+#                     while up, and area attacks, defensives and interrupts log why they fail.
+#                     0 - the attack loop of 1.6.
+#        Default:     0
+
+AiPlayerbot.CoaAttackLoop = 0
+
+#    AiPlayerbot.CoaSpellReplacement
+#        Description: 1 - checks, cooldowns and the set-aside list follow the spell a proc swaps in
+#                     (Malefic Wrath -> Malefic Arrow), the cast keeps the listed id. 0 - as in 1.6.
+#        Default:     0
+
+AiPlayerbot.CoaSpellReplacement = 0
+
 # Conquest of Azeroth specializations bots never play, by id, comma separated. A bot holding one
 # switches to another of its role, and ".playerbots coa" never recruits one.
 # Empty by default: no specialization is worth setting aside as things stand. The two that used to be
