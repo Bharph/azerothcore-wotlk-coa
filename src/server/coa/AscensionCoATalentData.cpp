@@ -28,9 +28,6 @@ constexpr uint32 ADVANCEMENT_RANK_COUNT = 5;
 
 constexpr std::array<uint32, 2> IDENTITY_PASSIVES_KEEPING_AUTHORED_GATES = { 4037, 4041 };
 
-constexpr std::array<uint32, 10> MANUAL_FREE_CHOICE_ENTRIES =
-    { 9172, 9861, 11172, 11257, 12112, 13111, 30764, 34257, 6243, 11243 };
-
 enum AdvancementDwordField : uint32
 {
     ADVANCEMENT_ID           = 0,
@@ -72,6 +69,11 @@ struct Node
     uint32 Group;
     bool ClassTab;
 };
+
+bool IsFreeChoice(Node const& node)
+{
+    return !node.Entry.AECost && !node.Entry.TECost && node.Group;
+}
 
 struct AdvancementClassType
 {
@@ -239,7 +241,7 @@ bool LoadCoATalentData()
     for (Node const& node : nodes)
     {
         CoATalentEntries.push_back(node.Entry);
-        if (Contains(MANUAL_FREE_CHOICE_ENTRIES, node.Entry.EntryId))
+        if (IsFreeChoice(node))
             CoASelectableFreeEntries.push_back({ node.Entry.EntryId, node.Group });
 
         if (node.Entry.AECost || node.Entry.TECost || node.Required.empty())
@@ -251,7 +253,7 @@ bool LoadCoATalentData()
             auto requiredNode = nodeById.find(requiredId);
             bool const paidClassNode = requiredNode != nodeById.end() && requiredNode->second->ClassTab &&
                 (requiredNode->second->Entry.AECost || requiredNode->second->Entry.TECost);
-            if (!(node.Entry.SpecId && !Contains(MANUAL_FREE_CHOICE_ENTRIES, node.Entry.EntryId) && paidClassNode))
+            if (!(node.Entry.SpecId && !IsFreeChoice(node) && paidClassNode))
                 required.push_back(requiredId);
         }
 
