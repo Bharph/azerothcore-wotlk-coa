@@ -70,6 +70,7 @@
 #include "GameTime.h"
 #include "GossipDef.h"
 #include "GlobalScript.h"
+#include "GroupScript.h"
 #include "GridTerrainData.h"
 #include "GuildPackets.h"
 #include "Item.h"
@@ -140,6 +141,7 @@ constexpr uint16 SMSG_VANITY_COLLECTION_INFO = 0x06F7;
 constexpr uint16 SMSG_VANITY_COLLECTION_ADDED = 0x06F8;
 
 constexpr uint16 CMSG_QUERY_CUSTOM_STORE = 0x06B9;
+constexpr uint16 CMSG_PURCHASE_CUSTOM_STORE_ITEM = 0x06BB;
 constexpr uint16 SMSG_QUERY_CUSTOM_STORE_RESULT = 0x06BA;
 constexpr std::size_t VANITY_STORE_RECORD_DWORDS = 16;
 constexpr uint16 SMSG_CHARACTER_ADVANCEMENT_ACTIVE_SPEC = 0x0725;
@@ -3637,6 +3639,46 @@ public:
     CollectItem(player, *state, item->GetEntry(), true);
   }
 
+    void OnQuestRewarded(Player* player, Quest const* quest)
+    {
+        if (!quest)
+            return;
+
+        auto state = GetState(player);
+        if (!state)
+            return;
+
+        for (uint32 index = 0; index < QUEST_REWARDS_COUNT; ++index)
+            if (quest->RewardItemId[index] && quest->RewardItemIdCount[index])
+                CollectItemAppearance(player, *state, quest->RewardItemId[index], true, true);
+
+        for (uint32 index = 0; index < QUEST_REWARD_CHOICES_COUNT; ++index)
+            if (quest->RewardChoiceItemId[index] && quest->RewardChoiceItemCount[index])
+                CollectItemAppearance(player, *state, quest->RewardChoiceItemId[index], true, true);
+    }
+
+    void OnLootRollStart(Roll const& roll, Loot const& loot, LootItem const& item)
+    {
+        ItemTemplate const* proto = sObjectMgr->GetItemTemplate(item.itemid);
+        if (!proto || proto->Quality >= ITEM_QUALITY_EPIC)
+            return;
+
+        for (auto const& [guid, vote] : roll.playerVote)
+        {
+            if (vote == NOT_VALID)
+                continue;
+
+            Player* player = ObjectAccessor::FindConnectedPlayer(guid);
+            if (!player || !player->GetSession() || player->GetSession()->IsBot() ||
+                !item.AllowedForPlayer(player, loot.sourceWorldObjectGUID))
+                continue;
+
+            auto state = GetState(player);
+            if (state)
+                CollectItemAppearance(player, *state, item.itemid, true, true);
+        }
+    }
+
   void OnVisibleItemSet(Player *player, uint8 slot, Item *item) {
     if (!item)
       return;
@@ -4086,27 +4128,36 @@ private:
     return false;
   }
 
-  void CollectItem(Player *player, PlayerCollectionState &state, uint32 itemId,
-                   bool notifyClient) {
-    auto mappingItr = _itemAppearances.find(itemId);
-    if (mappingItr != _itemAppearances.end())
+    void CollectItemAppearance(Player* player, PlayerCollectionState& state, uint32 itemId,
+        bool notifyClient, bool equipmentOnly = false)
     {
-      uint32 appearanceId = mappingItr->second;
-      auto const appearance = _appearances.find(appearanceId);
-      if (appearance != _appearances.end() && IsEquipmentAppearance(appearance->second))
-        sScriptMgr->OnPlayerCoAProgress(player, CoAProgressEvent::AppearanceCollected, appearanceId);
-      if (_appearances.contains(appearanceId) &&
-          state.CollectedAppearances.insert(appearanceId).second) {
+        auto const mapping = _itemAppearances.find(itemId);
+        if (mapping == _itemAppearances.end())
+            return;
+
+        uint32 const appearanceId = mapping->second;
+        auto const appearance = _appearances.find(appearanceId);
+        if (appearance == _appearances.end() || (equipmentOnly && !IsEquipmentAppearance(appearance->second)))
+            return;
+
+        if (IsEquipmentAppearance(appearance->second))
+            sScriptMgr->OnPlayerCoAProgress(player, CoAProgressEvent::AppearanceCollected, appearanceId);
+
+        if (!state.CollectedAppearances.insert(appearanceId).second)
+            return;
+
         CharacterDatabase.Execute(
             "INSERT IGNORE INTO `account_appearance_collection` (`account_id`, "
             "`appearance_id`, `source_item`) "
             "VALUES ({}, {}, {})",
             state.AccountId, appearanceId, itemId);
-
         if (notifyClient)
-          SendAppearanceAdded(player, appearanceId, itemId);
-      }
+            SendAppearanceAdded(player, appearanceId, itemId);
     }
+
+  void CollectItem(Player *player, PlayerCollectionState &state, uint32 itemId,
+                   bool notifyClient) {
+    CollectItemAppearance(player, state, itemId, notifyClient);
 
     if (_vanityItems.contains(itemId))
       sScriptMgr->OnPlayerCoAProgress(player, CoAProgressEvent::VanityCollected, itemId);
@@ -4175,6 +4226,17 @@ private:
         break;
       case CMSG_CUSTOM_ASCENSION_POINT_SPEND_REQUEST:
         HandlePointSpendRequest(player, packet);
+        break;
+      case CMSG_QUERY_CUSTOM_STORE:
+      case CMSG_PURCHASE_CUSTOM_STORE_ITEM:
+        if (!AscensionCompatOpcodes::Dispatch(player->GetSession(), packet) &&
+            packet.GetOpcode() == CMSG_QUERY_CUSTOM_STORE)
+        {
+          WorldPacket empty(SMSG_QUERY_CUSTOM_STORE_RESULT, 32);
+          empty << "QUERY_CUSTOM_STORE_OK";
+          empty << uint32(0);
+          player->GetSession()->SendPacket(&empty);
+        }
         break;
       default:
         break;
@@ -5006,6 +5068,24 @@ public:
     if (QueueAscensionManastormPacket(session, packet))
       return false;
 
+    if (opcode == CMSG_QUERY_CUSTOM_STORE || opcode == CMSG_PURCHASE_CUSTOM_STORE_ITEM)
+    {
+      if (!session->GetPlayer())
+      {
+        if (opcode == CMSG_QUERY_CUSTOM_STORE)
+        {
+          WorldPacket empty(SMSG_QUERY_CUSTOM_STORE_RESULT, 32);
+          empty << "QUERY_CUSTOM_STORE_OK";
+          empty << uint32(0);
+          session->SendPacket(&empty);
+        }
+        return false;
+      }
+
+      AscensionCollectionService::Instance().QueueClientPacket(session->GetAccountId(), packet);
+      return false;
+    }
+
     if (std::find(QUEUED_EXTENSION_OPCODES.begin(), QUEUED_EXTENSION_OPCODES.end(), opcode) !=
         QUEUED_EXTENSION_OPCODES.end())
         AscensionCollectionService::Instance().QueueClientPacket(session->GetAccountId(), packet);
@@ -5025,15 +5105,6 @@ public:
 
     if (AscensionCompatOpcodes::Dispatch(session, packet))
       return false;
-
-    if (opcode == CMSG_QUERY_CUSTOM_STORE)
-    {
-      WorldPacket empty(SMSG_QUERY_CUSTOM_STORE_RESULT, 32);
-      empty << "QUERY_CUSTOM_STORE_OK";
-      empty << uint32(0);
-      session->SendPacket(&empty);
-      return false;
-    }
 
     if (ascensionCompatConfig.GetConfigValue<bool>(
             AscensionCompatConfig::LOG_CONSUMED_PACKETS)) {
@@ -5554,6 +5625,7 @@ public:
             {PLAYERHOOK_ON_LOGIN, PLAYERHOOK_ON_LOGOUT, PLAYERHOOK_ON_UPDATE,
              PLAYERHOOK_ON_AFTER_SET_VISIBLE_ITEM_SLOT, PLAYERHOOK_ON_EQUIP,
              PLAYERHOOK_ON_STORE_NEW_ITEM, PLAYERHOOK_ON_CREATE_ITEM,
+             PLAYERHOOK_ON_PLAYER_COMPLETE_QUEST,
              PLAYERHOOK_ON_PLAYER_IS_CLASS, PLAYERHOOK_ON_LEVEL_CHANGED,
              PLAYERHOOK_ON_LEARN_SPELL, PLAYERHOOK_ON_FORGOT_SPELL,
              PLAYERHOOK_ON_AFTER_SPEC_SLOT_CHANGED,
@@ -5798,6 +5870,12 @@ public:
                      bool) override {
     AscensionCollectionService::Instance().OnItemObtained(player, item);
   }
+
+    void OnPlayerCompleteQuest(Player* player, Quest const* quest) override
+    {
+        if (ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
+            AscensionCollectionService::Instance().OnQuestRewarded(player, quest);
+    }
 
   void OnPlayerStoreNewItem(Player *player, Item *item,
                             uint32) override {
@@ -6259,7 +6337,8 @@ struct ScrollProfession
 
 constexpr ScrollProfession kProfessions[] = {
     { 171, "Alchemy" },        { 164, "Blacksmithing" }, { 333, "Enchanting" },
-    { 202, "Engineering" },    { 165, "Leatherworking" }, { 197, "Tailoring" },
+    { 202, "Engineering" },    { 773, "Inscription" },   { 755, "Jewelcrafting" },
+    { 165, "Leatherworking" }, { 197, "Tailoring" },
     { 182, "Herbalism" },      { 186, "Mining" },        { 393, "Skinning" },
     { 185, "Cooking" },        { 129, "First Aid" },     { 356, "Fishing" },
     { 633, "Lockpicking" },    { 732, "Woodcutting" },   { 757, "Woodworking" },
@@ -6873,6 +6952,19 @@ std::vector<AscensionClassAbility> GetAscensionClassAbilities(uint8 classId)
     return abilities;
 }
 
+class AscensionCompatGroupScript : public GroupScript
+{
+public:
+    AscensionCompatGroupScript()
+        : GroupScript("AscensionCompatGroupScript", {GROUPHOOK_ON_LOOT_ROLL_START}) { }
+
+    void OnLootRollStart(Group*, Roll const& roll, Loot const& loot, LootItem const& item) override
+    {
+        if (ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
+            AscensionCollectionService::Instance().OnLootRollStart(roll, loot, item);
+    }
+};
+
 class AscensionCompatAllCreatureScript : public AllCreatureScript {
 public:
   AscensionCompatAllCreatureScript()
@@ -6916,6 +7008,7 @@ void AddAscensionCompatScripts() {
   new AscensionCompatServerScript();
   new AscensionCompatCommandScript();
   new AscensionCompatPlayerScript();
+  new AscensionCompatGroupScript();
   new AscensionCompatAllSpellScript();
   new AscensionCompatUnitScript();
   new AscensionCompatChangelogScript();

@@ -1764,13 +1764,24 @@ std::unordered_map<uint32, uint32> const& CoaQuestGrantLevels(Player* bot)
             !bot->SatisfyQuestRace(quest, false))
             continue;
         uint32 const level = uint32(std::max<int32>(quest->GetMinLevel(), 1));
-        auto note = [&out, level](uint32 spellId)
+        // A quest teaching another class's spells is that class's quest: all it grants is "granted"
+        // above any level, so DropCoaRanksAbove takes back what was learnt, unless a legitimate source
+        // grants it lower.
+        bool foreign = false;
+        if (int32 const cast = quest->GetRewSpellCast())
+            if (SpellInfo const* info = sSpellMgr->GetSpellInfo(cast))
+                for (SpellEffectInfo const& effect : info->Effects)
+                    if (effect.Effect == SPELL_EFFECT_LEARN_SPELL &&
+                        PlayerbotFactory::IsCoaForeignClassSpell(bot, effect.TriggerSpell))
+                        foreign = true;
+        uint32 const at = foreign ? PlayerbotFactory::NoCoaGrantLevel - 1 : level;
+        auto note = [&out, at](uint32 spellId)
         {
             if (!spellId)
                 return;
             auto found = out.find(spellId);
-            if (found == out.end() || found->second > level)
-                out[spellId] = level;
+            if (found == out.end() || found->second > at)
+                out[spellId] = at;
         };
         note(quest->GetRewSpell());
         if (int32 const cast = quest->GetRewSpellCast())
@@ -1782,6 +1793,19 @@ std::unordered_map<uint32, uint32> const& CoaQuestGrantLevels(Player* bot)
     return out;
 }
 }  // namespace
+
+bool PlayerbotFactory::IsCoaForeignClassSpell(Player* bot, uint32 spellId)
+{
+    if (!IsAscensionCustomClassId(bot->getClass()))
+        return false;
+    SkillLineAbilityMapBounds const bounds = sSpellMgr->GetSkillLineAbilityMapBounds(spellId);
+    if (bounds.first == bounds.second)
+        return false;
+    for (auto i = bounds.first; i != bounds.second; ++i)
+        if (!i->second->ClassMask || (i->second->ClassMask & bot->getClassMask()))
+            return false;
+    return true;
+}
 
 uint32 PlayerbotFactory::CoaGrantLevel(Player* bot, uint32 spellId)
 {

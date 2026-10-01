@@ -997,6 +997,11 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
     namesArg = namesArg.substr(std::min(namesArg.size(), namesArg.find(' ')));
     namesArg.erase(0, namesArg.find_first_not_of(' '));
     namesArg.erase(namesArg.find_last_not_of(' ') + 1);
+    // A two-word name is often quoted ("Test Alt" or 'Test Alt'): quotes are never part of a name.
+    namesArg.erase(std::remove_if(namesArg.begin(), namesArg.end(), [](char c) { return c == '"' || c == '\''; }),
+                   namesArg.end());
+    namesArg.erase(0, namesArg.find_first_not_of(' '));
+    namesArg.erase(namesArg.find_last_not_of(' ') + 1);
 
     char* cmd = strtok((char*)args, " ");
     char* charname = strtok(nullptr, " ");
@@ -1334,6 +1339,9 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
     std::vector<std::string> chars = split(charnameStr, ',');
     for (std::vector<std::string>::iterator i = chars.begin(); i != chars.end(); i++)
     {
+        // "Test Alt, Other One": the space after the comma is not part of the next name.
+        i->erase(0, i->find_first_not_of(' '));
+        i->erase(i->find_last_not_of(' ') + 1);
         std::string s = *i;
 
         if (!strcmp(cmd, "addaccount"))

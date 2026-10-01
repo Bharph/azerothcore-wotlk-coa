@@ -15,8 +15,8 @@ AzerothCore is a C++ MMORPG server emulator for World of Warcraft 3.3.5a (WotLK)
   are separate scopes. Repeat passing checks only after changes or a specific unresolved concern.
 - In CoA-owned code, express intent through names, structure and tests; do not add explanatory comments or
   docstrings. Preserve legal notices, tool directives and test generator markers. Scope is
-  `src/server/coa/`, `apps/coa-tests/`, `apps/coa-bugreport/`, `apps/coa-{dbc,gameplay-test,mechanics}/`,
-  `tools/` and `.github/scripts/`.
+  `src/server/coa/`, `apps/coa-tests/`, `apps/coa-bugreport/`,
+  `apps/coa-{dbc,gameplay-test,mechanics,world-content}/`, `tools/` and `.github/scripts/`.
   The `source` stage of `tools/verify_all.py` enforces this for C++ and Python; without `--base` it audits the
   full scope.
 - In inherited AzerothCore source, keep existing comments so upstream merges stay clean; change a comment only
@@ -74,7 +74,8 @@ Read the relevant sections when needed for the work. Do not read every guide or 
   - SmartAI work (`smart_scripts` data) → also `.agents/docs/cpp-scripts.md`
 - Reviewing a changeset or PR → `.agents/docs/code-review.md`
 - Preparing an actual PR → `.agents/docs/self-review-rules.md`
-- Requested issue queue / issue-to-PR workflow → `.agents/skills/coa-fix-issues/SKILL.md`
+- Requested issue queue or topic fixes (class mechanics, quests, crashes, etc.) →
+  `.agents/skills/coa-fix-issues/SKILL.md` (topic requests default to 32 issues and one PR per batch)
 - Subsystem-specific questions → the relevant section in `.agents/docs/systems/`
 - Ascension damage/healing, AP/RAP/SP coefficients, triggered spells or tooltip parity →
   `.agents/docs/systems/ascension-spell-parity.md`

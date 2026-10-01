@@ -407,6 +407,10 @@ public:
     bool coaRecruitSameFaction;
     bool coaBotSurname;
     uint32 coaThreatHold;
+    bool coaAttackLoop;
+    bool coaSpellReplacement;
+    bool coaAttackCheckBench;
+    bool coaInterruptCoordination;
     uint32 coaTankOpenerSeconds;
     std::string coaStatusFile;
     uint32 coaStatusIntervalSeconds;
