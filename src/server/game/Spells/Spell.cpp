@@ -5296,11 +5296,12 @@ void Spell::SendChannelStart(uint32 duration)
 
 void Spell::SendResurrectRequest(Player* target)
 {
-    // get resurrector name for creature resurrections, otherwise packet will be not accepted
-    // for player resurrections the name is looked up by guid
-    std::string const sentName(m_caster->IsPlayer()
-                               ? ""
-                               : m_caster->GetNameForLocaleIdx(target->GetSession()->GetSessionDbLocaleIndex()));
+    // Send the resurrector's name explicitly. Creature names must be sent or the client rejects
+    // the packet; player names are normally resolved client-side from the GUID, but that resolution
+    // yields nil for casters the client has never cached (notably playerbots), which leaves the
+    // resurrect popup formatting a nil name every frame and spams a Lua error. Sending the name
+    // unconditionally keeps the GUID (used to accept the resurrect) while guaranteeing a valid name.
+    std::string const sentName(m_caster->GetNameForLocaleIdx(target->GetSession()->GetSessionDbLocaleIndex()));
 
     WorldPacket data(SMSG_RESURRECT_REQUEST, (8 + 4 + sentName.size() + 1 + 1 + 1 + 4));
     data << m_caster->GetGUID();
