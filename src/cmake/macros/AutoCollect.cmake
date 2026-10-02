@@ -25,7 +25,9 @@
 function(CollectSourceFiles current_dir variable)
   list(FIND ARGN "${current_dir}" IS_EXCLUDED)
   if(IS_EXCLUDED EQUAL -1)
-    file(GLOB COLLECTED_SOURCES
+    # CONFIGURE_DEPENDS re-globs at build time so added or removed sources and subdirectories
+    # re-run CMake configuration instead of being silently dropped by a stale glob cache.
+    file(GLOB COLLECTED_SOURCES CONFIGURE_DEPENDS
       ${current_dir}/*.c
       ${current_dir}/*.cc
       ${current_dir}/*.cpp
@@ -36,7 +38,7 @@ function(CollectSourceFiles current_dir variable)
       ${current_dir}/*.hpp)
     list(APPEND ${variable} ${COLLECTED_SOURCES})
 
-    file(GLOB SUB_DIRECTORIES ${current_dir}/*)
+    file(GLOB SUB_DIRECTORIES CONFIGURE_DEPENDS ${current_dir}/*)
     foreach(SUB_DIRECTORY ${SUB_DIRECTORIES})
       if (IS_DIRECTORY ${SUB_DIRECTORY})
         CollectSourceFiles("${SUB_DIRECTORY}" "${variable}" "${ARGN}")
@@ -62,7 +64,9 @@ function(CollectIncludeDirectories current_dir variable)
   list(FIND ARGN "${current_dir}" IS_EXCLUDED)
   if(IS_EXCLUDED EQUAL -1)
     list(APPEND ${variable} ${current_dir})
-    file(GLOB SUB_DIRECTORIES ${current_dir}/*)
+    # CONFIGURE_DEPENDS re-globs at build time so an added or removed subdirectory re-runs CMake
+    # configuration instead of a stale glob cache omitting its include directory.
+    file(GLOB SUB_DIRECTORIES CONFIGURE_DEPENDS ${current_dir}/*)
     foreach(SUB_DIRECTORY ${SUB_DIRECTORIES})
       if (IS_DIRECTORY ${SUB_DIRECTORY})
         CollectIncludeDirectories("${SUB_DIRECTORY}" "${variable}" "${ARGN}")
