@@ -938,7 +938,7 @@ AiPlayerbot.LevelBrackets.NumRanges = 12
 # Enables dynamic recalculation of bot distribution percentages based on the number of non-bot
 # players present in each level bracket. This overrides any custom brackets in the conf.
 # Default: 0 (disabled)
-AiPlayerbot.LevelBrackets.Dynamic.UseDynamicDistribution = 1
+AiPlayerbot.LevelBrackets.Dynamic.UseDynamicDistribution = 0
 
 # Controls how much extra weight is given to brackets (level ranges) that contain real (non-bot)
 # players, when dynamic distribution is enabled. The higher this value, the more bots move to the
@@ -1232,6 +1232,12 @@ AiPlayerbot.RandomGearQualityLimit = 3
 # Default: 0 (no limit)
 AiPlayerbot.RandomGearScoreLimit = 0
 
+# With RandomGearQualityLimit = 4 (epic), the level from which bots may wear epic gear; below it they
+# keep to rare. Conquest of Azeroth Worldforged items count as gear of their level, whatever
+# LimitGearExpansion says. ".playerbots coa regear [level]" gears the bots online again (game masters).
+# Default: 60
+AiPlayerbot.CoaEpicGearMinLevel = 99
+
 # Prefer armor of the class's ideal type: apply 3x score multiplier to class-appropriate armor.
 # When enabled, Warriors strongly prefer plate, Shamans prefer mail, etc.
 # A truly superior item can still win (no hard filtering), but same-quality
@@ -1464,6 +1470,13 @@ AiPlayerbot.CoaCasterManaReserve = 15
 # Default: 0 (disabled)
 AiPlayerbot.CoaGroupTelemetry = 0
 
+# ".playerbots coa raid [size] [tanks] [healers]" fills the raid of the one who types it with bots.
+# Game masters have no limit. A player may build one raid every CoaRaidPlayerCooldown minutes, and
+# only while the realm has fewer than CoaRaidPlayerMax raids of bots built by players.
+# Default: 5 raids at a time, 30 minutes
+AiPlayerbot.CoaRaidPlayerMax = 0
+AiPlayerbot.CoaRaidPlayerCooldown = 30
+
 # A snapshot of every random bot online, written as JSON for the SquidBots dashboard (bot-status.json,
 # its "botStatusFile" setting): position, health, power, what the bot is doing, its group and its
 # quests, shown on the map and on each bot's card. The file is written whole under a .tmp name and
@@ -1494,6 +1507,15 @@ AiPlayerbot.CoaSmartHeal = 1
 # Default: 1 (enabled)
 AiPlayerbot.CoaSmartTank = 1
 
+# Bots of Conquest of Azeroth read the casts of dungeon and raid enemies: melee damage
+# dealers step out of a point blank cast (Whirlwind, Fire Nova, War Stomp) or from in front of
+# a cone (breaths, Arcing Smash) while its cast bar runs, anyone leaves the spot of an area
+# cast (Flamestrike), and ranged members keep out of the reach of instant point blank spells
+# that the smart_scripts rows of the creature hold. Radius limit: AiPlayerbot.MaxAoeAvoidRadius.
+# Takes effect when a bot's strategies are reset (login, ".playerbots bot init", spec change).
+# Default: 1 (enabled)
+AiPlayerbot.CoaBossKnowledge = 0
+
 #    AiPlayerbot.CoaTankOpenerSeconds
 #        Description: With CoaSmartTank, a CoA damage dealer lets the tank open: on a target no tank
 #                     has touched yet it waits at most this many seconds, then goes all out. Read
@@ -1517,16 +1539,16 @@ AiPlayerbot.CoaThreatHold = 0
 #                     minute after three refusals, cleaves wait for melee reach, summons are not recast
 #                     while up, and area attacks, defensives and interrupts log why they fail.
 #                     0 - the attack loop of 1.6.
-#        Default:     0
+#        Default:     1
 
 AiPlayerbot.CoaAttackLoop = 0
 
 #    AiPlayerbot.CoaSpellReplacement
 #        Description: 1 - checks, cooldowns and the set-aside list follow the spell a proc swaps in
 #                     (Malefic Wrath -> Malefic Arrow), the cast keeps the listed id. 0 - as in 1.6.
-#        Default:     0
+#        Default:     1
 
-AiPlayerbot.CoaSpellReplacement = 0
+AiPlayerbot.CoaSpellReplacement = 1
 
 #    AiPlayerbot.CoaAttackCheckBench
 #        Description: with AiPlayerbot.CoaAttackLoop = 1, what becomes of an attack the strict check turns
@@ -1548,7 +1570,7 @@ AiPlayerbot.CoaAttackCheckBench = 0
 #                     0 - every bot kicks the first cast it sees, as in 1.6. Either way CoaBots.log counts
 #                     the enemy casts seen and kicked and the kicks wasted on a cast already kicked.
 #                     Read again by ".reload config".
-#        Default:     0
+#        Default:     1
 
 AiPlayerbot.CoaInterruptCoordination = 0
 
@@ -1668,9 +1690,9 @@ AiPlayerbot.CoaLfgLevelRange = 2
 #    AiPlayerbot.CoaLfgOfferMinutes
 #        Description: How long an offer holds: meanwhile the bot is offered to nobody else and
 #                     accepts that player's invitation. Afterwards it goes back to its own life.
-#        Default:     5
+#        Default:     2
 
-AiPlayerbot.CoaLfgOfferMinutes = 5
+AiPlayerbot.CoaLfgOfferMinutes = 2
 
 #    AiPlayerbot.CoaLfgCooldown
 #        Description: Seconds before the same player is answered again for the same role.

@@ -38,6 +38,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <map>
+#include <random>
 #include <iterator>
 #include <cstdlib>
 #include <array>
@@ -571,11 +573,12 @@ Player* FindCoaRecruit(Player* master, CoaRole role, uint8 classId, std::set<Obj
     {
         if (!bot || bot == master || !bot->IsInWorld() || bot->IsBeingTeleported() ||
             !IsAscensionCustomClassId(bot->getClass()) || !bot->IsAlive() || bot->IsInCombat() || bot->GetGroup() ||
-            bot->InBattleground() || bot->IsInFlight())
+            bot->GetGroupInvite() || bot->InBattleground() || bot->InBattlegroundQueue() || bot->IsInFlight() ||
+            sLFGMgr->GetState(bot->GetGUID()) != lfg::LFG_STATE_NONE)
             continue;
 
         // Already offered to another player (lfg bots) or otherwise set aside by the caller.
-        if (skip.count(bot->GetGUID()))
+        if (skip.count(bot->GetGUID()) || CoaLfgOfferedToOther(bot, master))
             continue;
 
         // The bot is added to the group directly, past the invitation checks, so the faction rule
@@ -820,6 +823,124 @@ bool RecruitCoaBot(Player* master, CoaRole role, std::string& message, uint8 cla
     return true;
 }
 
+bool RecruitCoaRaid(Player* master, uint32 size, uint32 tanks, uint32 heals, std::string& message)
+{
+    size = std::clamp<uint32>(size ? size : 25, 6, MAXRAIDSIZE);
+    if (!tanks)
+        tanks = std::max<uint32>(2, size / 8);
+    if (!heals)
+        heals = (size + 2) / 4;
+    tanks = std::min(tanks, size - 1);
+    heals = std::min(heals, size - 1 - tanks);
+
+    if (master->InBattleground() || master->InArena())
+    {
+        message = "Not in a battleground.";
+        return false;
+    }
+
+    Group* group = master->GetGroup();
+    if (group && (group->isLFGGroup() || group->isBGGroup() || group->isBFGroup()))
+    {
+        message = "Leave the Dungeon Finder or battleground group first.";
+        return false;
+    }
+    if (group && !group->IsLeader(master->GetGUID()))
+    {
+        message = "Only the group leader can build a raid.";
+        return false;
+    }
+    if (!group)
+    {
+        group = new Group();
+        if (!group->Create(master))
+        {
+            delete group;
+            message = "Could not create a group.";
+            return false;
+        }
+        sGroupMgr->AddGroup(group);
+    }
+    if (!group->isRaidGroup())
+        group->ConvertToRaid();
+
+    // The members already there count: a tank or a healer already in the group is one less to find.
+    std::array<uint32, 3> wanted = { 0, tanks, heals };
+    std::map<uint8, uint32> classCount;
+    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+        if (Player* member = ref->GetSource())
+        {
+            ++classCount[member->getClass()];
+            uint8 const role = uint8(GetCoaRole(member));
+            if (role != uint8(CoaRole::Dps) && wanted[role])
+                --wanted[role];
+        }
+    uint32 const members = group->GetMembersCount();
+    if (members >= size)
+    {
+        message = "Your raid already has " + std::to_string(members) + " members.";
+        return false;
+    }
+    uint32 const free = size - members;
+    wanted[uint8(CoaRole::Tank)] = std::min(wanted[uint8(CoaRole::Tank)], free);
+    wanted[uint8(CoaRole::Heal)] = std::min(wanted[uint8(CoaRole::Heal)], free - wanted[uint8(CoaRole::Tank)]);
+    wanted[uint8(CoaRole::Dps)] = free - wanted[uint8(CoaRole::Tank)] - wanted[uint8(CoaRole::Heal)];
+
+    // Classes taken in turn, the least represented first, so that 15 damage dealers are not 15 of a kind.
+    std::mt19937 shuffler(urand(0, 0x7FFFFFFF));
+    std::array<uint32, 3> got = {};
+    std::string stopped;
+    for (CoaRole role : { CoaRole::Tank, CoaRole::Heal, CoaRole::Dps })
+    {
+        for (uint32 i = 0; i < wanted[uint8(role)]; ++i)
+        {
+            std::vector<uint8> classes;
+            for (uint8 classId = FirstCoaClass; classId < FirstCoaClass + std::size(CoaClassNames); ++classId)
+                if (!SpecializationsByRole(classId)[uint8(role)].empty())
+                    classes.push_back(classId);
+            std::shuffle(classes.begin(), classes.end(), shuffler);
+            std::stable_sort(classes.begin(), classes.end(),
+                             [&classCount](uint8 a, uint8 b) { return classCount[a] < classCount[b]; });
+
+            bool recruited = false;
+            std::string reason;
+            for (uint8 classId : classes)
+                if (RecruitCoaBot(master, role, reason, classId))
+                {
+                    ++classCount[classId];
+                    recruited = true;
+                    break;
+                }
+            if (!recruited)
+            {
+                stopped += " No free bot left to play " + std::string(RoleName(role)) + ".";
+                break;
+            }
+            ++got[uint8(role)];
+        }
+    }
+
+    // The raid panel counts tanks and healers from the group roles: each bot shows the one it plays.
+    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+        if (Player* member = ref->GetSource())
+            if (GET_PLAYERBOT_AI(member))
+            {
+                CoaRole const role = GetCoaRole(member);
+                group->SetLfgRoles(member->GetGUID(), role == CoaRole::Tank   ? lfg::PLAYER_ROLE_TANK
+                                                      : role == CoaRole::Heal ? lfg::PLAYER_ROLE_HEALER
+                                                                              : lfg::PLAYER_ROLE_DAMAGE);
+            }
+
+    LOG_INFO("playerbots", "coa: {} built a raid of {}: {} tanks, {} healers, {} damage dealers recruited",
+             master->GetName(), size, got[uint8(CoaRole::Tank)], got[uint8(CoaRole::Heal)], got[uint8(CoaRole::Dps)]);
+
+    message = "Raid: " + std::to_string(got[uint8(CoaRole::Tank)]) + " tanks, " +
+              std::to_string(got[uint8(CoaRole::Heal)]) + " healers and " + std::to_string(got[uint8(CoaRole::Dps)]) +
+              " damage dealers joined (" + std::to_string(group->GetMembersCount()) + "/" + std::to_string(size) + ").";
+    message += stopped;
+    return got[0] + got[1] + got[2] > 0;
+}
+
 /*
  * Bots that answer "lfg bot heal" in a chat channel.
  *
@@ -843,7 +964,7 @@ struct CoaLfgSettings
     bool requireBotWord = true;
     std::array<uint32, 3> offers = { 3, 2, 2 };  // by CoaRole: dps, tank, heal
     uint32 levelRange = 2;
-    uint32 offerSeconds = 5 * MINUTE;
+    uint32 offerSeconds = 2 * MINUTE;
     uint32 cooldownSeconds = 30;
     uint32 announceSeconds = 10 * MINUTE;
     std::string announce;
@@ -890,7 +1011,7 @@ void LoadLfgSettings()
     for (uint32& count : settings.offers)
         count = std::min<uint32>(count, 5);
     settings.levelRange = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaLfgLevelRange", 2);
-    settings.offerSeconds = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaLfgOfferMinutes", 5) * MINUTE;
+    settings.offerSeconds = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaLfgOfferMinutes", 2) * MINUTE;
     settings.cooldownSeconds = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaLfgCooldown", 15);
     settings.announceSeconds = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaLfgAnnounceMinutes", 10) * MINUTE;
     settings.announce = sConfigMgr->GetOption<std::string>("AiPlayerbot.CoaLfgAnnounceText", "");
@@ -1111,6 +1232,16 @@ void CoaLfgHeard(Player* player, std::string const& message, Channel* channel)
         if (!offered)
             chat.PSendSysMessage("No bot of your faction is free to play {} right now.", RoleName(role));
     }
+}
+
+bool CoaLfgOfferedToOther(Player* bot, Player* player)
+{
+    if (!bot)
+        return false;
+    std::lock_guard<std::mutex> guard(LfgLock);
+    auto const offer = LfgOffers.find(bot->GetGUID());
+    return offer != LfgOffers.end() && offer->second.until >= time(nullptr) &&
+           (!player || offer->second.player != player->GetGUID());
 }
 
 bool CoaLfgTakeOffer(Player* bot, Player* inviter)

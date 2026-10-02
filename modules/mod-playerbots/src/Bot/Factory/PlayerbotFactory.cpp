@@ -13,6 +13,7 @@
 #include "CoaSpecLookup.h"
 #include "CoaSpecStatWeights.h"
 #include "CoaSpecialization.h"
+#include "Config.h"
 #include "DBCStores.h"
 #include "DBCStructure.h"
 #include "GuildMgr.h"
@@ -566,7 +567,26 @@ PlayerbotFactory::PlayerbotFactory(Player* bot, uint32 level, uint32 itemQuality
                                                                sPlayerbotAIConfig.randomGearQualityLimit);
         this->itemQuality = sPlayerbotAIConfig.randomGearQualityLimit;
         this->gearScoreLimit = gs;
+        // Epic gear is for the bots at the top level only: below it they keep to rare.
+        static uint32 const epicMinLevel = sConfigMgr->GetOption<uint32>("AiPlayerbot.CoaEpicGearMinLevel", 60);
+        if (this->itemQuality > ITEM_QUALITY_RARE && level < epicMinLevel)
+            this->itemQuality = ITEM_QUALITY_RARE;
     }
+}
+
+// Worldforged items (Conquest of Azeroth): found in the open world, their entries above those of the
+// next expansions; the expansion limit lets them through, the item level limit still applies.
+bool PlayerbotFactory::IsCoaWorldforged(uint32 itemId)
+{
+    static std::unordered_set<uint32> const worldforged = []
+    {
+        std::unordered_set<uint32> ids;
+        for (auto const& [id, proto] : *sObjectMgr->GetItemTemplateStore())
+            if (proto.Description.find("Worldforged") != std::string::npos)
+                ids.insert(id);
+        return ids;
+    }();
+    return worldforged.contains(itemId);
 }
 
 void PlayerbotFactory::Init()
@@ -2745,10 +2765,13 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
 
                         ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
                         // disable next expansion gear
-                        if (sPlayerbotAIConfig.limitGearExpansion && bot->GetLevel() <= 60 && itemId >= 23728)
+                        bool const worldforged = IsCoaWorldforged(itemId);
+                        if (sPlayerbotAIConfig.limitGearExpansion && bot->GetLevel() <= 60 && itemId >= 23728 &&
+                            !worldforged)
                             continue;
 
                         if (sPlayerbotAIConfig.limitGearExpansion && bot->GetLevel() <= 70 && itemId >= 35570 &&
+                            !worldforged &&
                             itemId != 36737 && itemId != 37739 &&
                             itemId != 37740)  // transition point from TBC -> WOTLK isn't as clear, and there are other
                                               // wearable TBC items above 35570 but nothing of significance
