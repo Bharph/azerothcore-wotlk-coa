@@ -1,0 +1,1199 @@
+{
+  "schema": 1,
+  "name": "DPS directional A",
+  "contract": "Directional signature single-target ability throughput; L80 base stats no gear; NOT sustained DPS.",
+  "timeout_ms": 600000,
+  "players": [
+    {
+      "id": "p12",
+      "race": 1,
+      "class": 12,
+      "level": 80
+    },
+    {
+      "id": "p13",
+      "race": 1,
+      "class": 13,
+      "level": 80
+    },
+    {
+      "id": "p14",
+      "race": 1,
+      "class": 14,
+      "level": 80
+    },
+    {
+      "id": "p15",
+      "race": 1,
+      "class": 15,
+      "level": 80
+    },
+    {
+      "id": "p17",
+      "race": 1,
+      "class": 17,
+      "level": 80
+    },
+    {
+      "id": "p20",
+      "race": 1,
+      "class": 20,
+      "level": 80
+    }
+  ],
+  "creatures": [
+    {
+      "id": "d12",
+      "owner": "p12",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d13",
+      "owner": "p13",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d14",
+      "owner": "p14",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d15",
+      "owner": "p15",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d17",
+      "owner": "p17",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d20",
+      "owner": "p20",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    }
+  ],
+  "steps": [
+    {
+      "action": "wait",
+      "label": "settle",
+      "ms": 6000
+    },
+    {
+      "action": "learn",
+      "actor": "p12",
+      "spell": 801576
+    },
+    {
+      "action": "set_power",
+      "actor": "p12",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "snapshot",
+      "actor": "p12",
+      "metric": "spell_cast_time_ms",
+      "spell": 801576,
+      "save_as": "ct_12"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p12",
+      "metric": "spell_damage_total",
+      "spell": 801576,
+      "target": "d12",
+      "save_as": "d0_12"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p12",
+      "metric": "spell_damage_count",
+      "spell": 801576,
+      "target": "d12",
+      "save_as": "n0_12"
+    },
+    {
+      "action": "set_power",
+      "actor": "p12",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p12",
+      "spell": 801576,
+      "target": "d12"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p12",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p12",
+      "spell": 801576,
+      "target": "d12"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p12",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p12",
+      "spell": 801576,
+      "target": "d12"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p12",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p12",
+      "spell": 801576,
+      "target": "d12"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p12",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p12",
+      "spell": 801576,
+      "target": "d12"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p12",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p12",
+      "spell": 801576,
+      "target": "d12"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p12",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p12",
+      "spell": 801576,
+      "target": "d12"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p12",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p12",
+      "spell": 801576,
+      "target": "d12"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p12",
+      "metric": "spell_damage_total",
+      "spell": 801576,
+      "target": "d12",
+      "relative_to": "d0_12",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Barbarian"
+    },
+    {
+      "action": "assert",
+      "actor": "p12",
+      "metric": "spell_damage_count",
+      "spell": 801576,
+      "target": "d12",
+      "relative_to": "n0_12",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Barbarian"
+    },
+    {
+      "action": "assert",
+      "actor": "p12",
+      "metric": "spell_cast_time_ms",
+      "spell": 801576,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Barbarian"
+    },
+    {
+      "action": "learn",
+      "actor": "p13",
+      "spell": 501158
+    },
+    {
+      "action": "snapshot",
+      "actor": "p13",
+      "metric": "spell_cast_time_ms",
+      "spell": 501158,
+      "save_as": "ct_13"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p13",
+      "metric": "spell_damage_total",
+      "spell": 501158,
+      "target": "d13",
+      "save_as": "d0_13"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p13",
+      "metric": "spell_damage_count",
+      "spell": 501158,
+      "target": "d13",
+      "save_as": "n0_13"
+    },
+    {
+      "action": "cast",
+      "actor": "p13",
+      "spell": 501158,
+      "target": "d13"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p13",
+      "spell": 501158,
+      "target": "d13"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p13",
+      "spell": 501158,
+      "target": "d13"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p13",
+      "spell": 501158,
+      "target": "d13"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p13",
+      "spell": 501158,
+      "target": "d13"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p13",
+      "spell": 501158,
+      "target": "d13"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p13",
+      "spell": 501158,
+      "target": "d13"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p13",
+      "spell": 501158,
+      "target": "d13"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p13",
+      "metric": "spell_damage_total",
+      "spell": 501158,
+      "target": "d13",
+      "relative_to": "d0_13",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Witch Doctor"
+    },
+    {
+      "action": "assert",
+      "actor": "p13",
+      "metric": "spell_damage_count",
+      "spell": 501158,
+      "target": "d13",
+      "relative_to": "n0_13",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Witch Doctor"
+    },
+    {
+      "action": "assert",
+      "actor": "p13",
+      "metric": "spell_cast_time_ms",
+      "spell": 501158,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Witch Doctor"
+    },
+    {
+      "action": "learn",
+      "actor": "p14",
+      "spell": 801895
+    },
+    {
+      "action": "set_power",
+      "actor": "p14",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "snapshot",
+      "actor": "p14",
+      "metric": "spell_cast_time_ms",
+      "spell": 801895,
+      "save_as": "ct_14"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p14",
+      "metric": "spell_damage_total",
+      "spell": 801895,
+      "target": "d14",
+      "save_as": "d0_14"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p14",
+      "metric": "spell_damage_count",
+      "spell": 801895,
+      "target": "d14",
+      "save_as": "n0_14"
+    },
+    {
+      "action": "set_power",
+      "actor": "p14",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p14",
+      "spell": 801895,
+      "target": "d14"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p14",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p14",
+      "spell": 801895,
+      "target": "d14"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p14",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p14",
+      "spell": 801895,
+      "target": "d14"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p14",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p14",
+      "spell": 801895,
+      "target": "d14"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p14",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p14",
+      "spell": 801895,
+      "target": "d14"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p14",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p14",
+      "spell": 801895,
+      "target": "d14"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p14",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p14",
+      "spell": 801895,
+      "target": "d14"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p14",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p14",
+      "spell": 801895,
+      "target": "d14"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p14",
+      "metric": "spell_damage_total",
+      "spell": 801895,
+      "target": "d14",
+      "relative_to": "d0_14",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Felsworn"
+    },
+    {
+      "action": "assert",
+      "actor": "p14",
+      "metric": "spell_damage_count",
+      "spell": 801895,
+      "target": "d14",
+      "relative_to": "n0_14",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Felsworn"
+    },
+    {
+      "action": "assert",
+      "actor": "p14",
+      "metric": "spell_cast_time_ms",
+      "spell": 801895,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Felsworn"
+    },
+    {
+      "action": "learn",
+      "actor": "p15",
+      "spell": 680264
+    },
+    {
+      "action": "set_power",
+      "actor": "p15",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "snapshot",
+      "actor": "p15",
+      "metric": "spell_cast_time_ms",
+      "spell": 680264,
+      "save_as": "ct_15"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p15",
+      "metric": "spell_damage_total",
+      "spell": 680264,
+      "target": "d15",
+      "save_as": "d0_15"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p15",
+      "metric": "spell_damage_count",
+      "spell": 680264,
+      "target": "d15",
+      "save_as": "n0_15"
+    },
+    {
+      "action": "set_power",
+      "actor": "p15",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p15",
+      "spell": 680264,
+      "target": "d15"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p15",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p15",
+      "spell": 680264,
+      "target": "d15"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p15",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p15",
+      "spell": 680264,
+      "target": "d15"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p15",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p15",
+      "spell": 680264,
+      "target": "d15"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p15",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p15",
+      "spell": 680264,
+      "target": "d15"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p15",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p15",
+      "spell": 680264,
+      "target": "d15"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p15",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p15",
+      "spell": 680264,
+      "target": "d15"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p15",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p15",
+      "spell": 680264,
+      "target": "d15"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p15",
+      "metric": "spell_damage_total",
+      "spell": 680264,
+      "target": "d15",
+      "relative_to": "d0_15",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Witch Hunter"
+    },
+    {
+      "action": "assert",
+      "actor": "p15",
+      "metric": "spell_damage_count",
+      "spell": 680264,
+      "target": "d15",
+      "relative_to": "n0_15",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Witch Hunter"
+    },
+    {
+      "action": "assert",
+      "actor": "p15",
+      "metric": "spell_cast_time_ms",
+      "spell": 680264,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Witch Hunter"
+    },
+    {
+      "action": "learn",
+      "actor": "p17",
+      "spell": 806965
+    },
+    {
+      "action": "set_power",
+      "actor": "p17",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "snapshot",
+      "actor": "p17",
+      "metric": "spell_cast_time_ms",
+      "spell": 806965,
+      "save_as": "ct_17"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p17",
+      "metric": "spell_damage_total",
+      "spell": 806965,
+      "target": "d17",
+      "save_as": "d0_17"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p17",
+      "metric": "spell_damage_count",
+      "spell": 806965,
+      "target": "d17",
+      "save_as": "n0_17"
+    },
+    {
+      "action": "set_power",
+      "actor": "p17",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p17",
+      "spell": 806965,
+      "target": "d17"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p17",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p17",
+      "spell": 806965,
+      "target": "d17"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p17",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p17",
+      "spell": 806965,
+      "target": "d17"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p17",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p17",
+      "spell": 806965,
+      "target": "d17"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p17",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p17",
+      "spell": 806965,
+      "target": "d17"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p17",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p17",
+      "spell": 806965,
+      "target": "d17"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p17",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p17",
+      "spell": 806965,
+      "target": "d17"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p17",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p17",
+      "spell": 806965,
+      "target": "d17"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p17",
+      "metric": "spell_damage_total",
+      "spell": 806965,
+      "target": "d17",
+      "relative_to": "d0_17",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Knight of Xoroth"
+    },
+    {
+      "action": "assert",
+      "actor": "p17",
+      "metric": "spell_damage_count",
+      "spell": 806965,
+      "target": "d17",
+      "relative_to": "n0_17",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Knight of Xoroth"
+    },
+    {
+      "action": "assert",
+      "actor": "p17",
+      "metric": "spell_cast_time_ms",
+      "spell": 806965,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Knight of Xoroth"
+    },
+    {
+      "action": "learn",
+      "actor": "p20",
+      "spell": 572551
+    },
+    {
+      "action": "set_power",
+      "actor": "p20",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "snapshot",
+      "actor": "p20",
+      "metric": "spell_cast_time_ms",
+      "spell": 572551,
+      "save_as": "ct_20"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p20",
+      "metric": "spell_damage_total",
+      "spell": 572551,
+      "target": "d20",
+      "save_as": "d0_20"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p20",
+      "metric": "spell_damage_count",
+      "spell": 572551,
+      "target": "d20",
+      "save_as": "n0_20"
+    },
+    {
+      "action": "set_power",
+      "actor": "p20",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p20",
+      "spell": 572551,
+      "target": "d20"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p20",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p20",
+      "spell": 572551,
+      "target": "d20"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p20",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p20",
+      "spell": 572551,
+      "target": "d20"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p20",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p20",
+      "spell": 572551,
+      "target": "d20"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p20",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p20",
+      "spell": 572551,
+      "target": "d20"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p20",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p20",
+      "spell": 572551,
+      "target": "d20"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p20",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p20",
+      "spell": 572551,
+      "target": "d20"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p20",
+      "power": 1,
+      "value": 500
+    },
+    {
+      "action": "cast",
+      "actor": "p20",
+      "spell": 572551,
+      "target": "d20"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p20",
+      "metric": "spell_damage_total",
+      "spell": 572551,
+      "target": "d20",
+      "relative_to": "d0_20",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Bloodmage"
+    },
+    {
+      "action": "assert",
+      "actor": "p20",
+      "metric": "spell_damage_count",
+      "spell": 572551,
+      "target": "d20",
+      "relative_to": "n0_20",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Bloodmage"
+    },
+    {
+      "action": "assert",
+      "actor": "p20",
+      "metric": "spell_cast_time_ms",
+      "spell": 572551,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Bloodmage"
+    }
+  ]
+}

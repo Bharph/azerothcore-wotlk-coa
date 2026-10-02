@@ -1,0 +1,1037 @@
+{
+  "schema": 1,
+  "name": "DPS directional B",
+  "contract": "Directional signature single-target ability throughput; L80 base stats no gear; NOT sustained DPS.",
+  "timeout_ms": 600000,
+  "players": [
+    {
+      "id": "p21",
+      "race": 1,
+      "class": 21,
+      "level": 80
+    },
+    {
+      "id": "p23",
+      "race": 5,
+      "class": 23,
+      "level": 80
+    },
+    {
+      "id": "p26",
+      "race": 1,
+      "class": 26,
+      "level": 80
+    },
+    {
+      "id": "p27",
+      "race": 1,
+      "class": 27,
+      "level": 80
+    },
+    {
+      "id": "p29",
+      "race": 1,
+      "class": 29,
+      "level": 80
+    },
+    {
+      "id": "p30",
+      "race": 10,
+      "class": 30,
+      "level": 80
+    }
+  ],
+  "creatures": [
+    {
+      "id": "d21",
+      "owner": "p21",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d23",
+      "owner": "p23",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d26",
+      "owner": "p26",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d27",
+      "owner": "p27",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d29",
+      "owner": "p29",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    },
+    {
+      "id": "d30",
+      "owner": "p30",
+      "entry": 36,
+      "health": 100000000,
+      "distance": 5
+    }
+  ],
+  "steps": [
+    {
+      "action": "wait",
+      "label": "settle",
+      "ms": 6000
+    },
+    {
+      "action": "learn",
+      "actor": "p21",
+      "spell": 802036
+    },
+    {
+      "action": "set_power",
+      "actor": "p21",
+      "power": 2,
+      "value": 100
+    },
+    {
+      "action": "snapshot",
+      "actor": "p21",
+      "metric": "spell_cast_time_ms",
+      "spell": 802036,
+      "save_as": "ct_21"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p21",
+      "metric": "spell_damage_total",
+      "spell": 802036,
+      "target": "d21",
+      "save_as": "d0_21"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p21",
+      "metric": "spell_damage_count",
+      "spell": 802036,
+      "target": "d21",
+      "save_as": "n0_21"
+    },
+    {
+      "action": "set_power",
+      "actor": "p21",
+      "power": 2,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p21",
+      "spell": 802036,
+      "target": "d21"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p21",
+      "power": 2,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p21",
+      "spell": 802036,
+      "target": "d21"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p21",
+      "power": 2,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p21",
+      "spell": 802036,
+      "target": "d21"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p21",
+      "power": 2,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p21",
+      "spell": 802036,
+      "target": "d21"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p21",
+      "power": 2,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p21",
+      "spell": 802036,
+      "target": "d21"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p21",
+      "power": 2,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p21",
+      "spell": 802036,
+      "target": "d21"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p21",
+      "power": 2,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p21",
+      "spell": 802036,
+      "target": "d21"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p21",
+      "power": 2,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p21",
+      "spell": 802036,
+      "target": "d21"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p21",
+      "metric": "spell_damage_total",
+      "spell": 802036,
+      "target": "d21",
+      "relative_to": "d0_21",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Ranger"
+    },
+    {
+      "action": "assert",
+      "actor": "p21",
+      "metric": "spell_damage_count",
+      "spell": 802036,
+      "target": "d21",
+      "relative_to": "n0_21",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Ranger"
+    },
+    {
+      "action": "assert",
+      "actor": "p21",
+      "metric": "spell_cast_time_ms",
+      "spell": 802036,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Ranger"
+    },
+    {
+      "action": "learn",
+      "actor": "p23",
+      "spell": 801722
+    },
+    {
+      "action": "snapshot",
+      "actor": "p23",
+      "metric": "spell_cast_time_ms",
+      "spell": 801722,
+      "save_as": "ct_23"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p23",
+      "metric": "spell_damage_total",
+      "spell": 801722,
+      "target": "d23",
+      "save_as": "d0_23"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p23",
+      "metric": "spell_damage_count",
+      "spell": 801722,
+      "target": "d23",
+      "save_as": "n0_23"
+    },
+    {
+      "action": "cast",
+      "actor": "p23",
+      "spell": 801722,
+      "target": "d23"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p23",
+      "spell": 801722,
+      "target": "d23"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p23",
+      "spell": 801722,
+      "target": "d23"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p23",
+      "spell": 801722,
+      "target": "d23"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p23",
+      "spell": 801722,
+      "target": "d23"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p23",
+      "spell": 801722,
+      "target": "d23"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p23",
+      "spell": 801722,
+      "target": "d23"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p23",
+      "spell": 801722,
+      "target": "d23"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p23",
+      "metric": "spell_damage_total",
+      "spell": 801722,
+      "target": "d23",
+      "relative_to": "d0_23",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Necromancer"
+    },
+    {
+      "action": "assert",
+      "actor": "p23",
+      "metric": "spell_damage_count",
+      "spell": 801722,
+      "target": "d23",
+      "relative_to": "n0_23",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Necromancer"
+    },
+    {
+      "action": "assert",
+      "actor": "p23",
+      "metric": "spell_cast_time_ms",
+      "spell": 801722,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Necromancer"
+    },
+    {
+      "action": "learn",
+      "actor": "p26",
+      "spell": 800496
+    },
+    {
+      "action": "set_power",
+      "actor": "p26",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "snapshot",
+      "actor": "p26",
+      "metric": "spell_cast_time_ms",
+      "spell": 800496,
+      "save_as": "ct_26"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p26",
+      "metric": "spell_damage_total",
+      "spell": 800496,
+      "target": "d26",
+      "save_as": "d0_26"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p26",
+      "metric": "spell_damage_count",
+      "spell": 800496,
+      "target": "d26",
+      "save_as": "n0_26"
+    },
+    {
+      "action": "set_power",
+      "actor": "p26",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p26",
+      "spell": 800496,
+      "target": "d26"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p26",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p26",
+      "spell": 800496,
+      "target": "d26"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p26",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p26",
+      "spell": 800496,
+      "target": "d26"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p26",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p26",
+      "spell": 800496,
+      "target": "d26"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p26",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p26",
+      "spell": 800496,
+      "target": "d26"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p26",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p26",
+      "spell": 800496,
+      "target": "d26"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p26",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p26",
+      "spell": 800496,
+      "target": "d26"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "set_power",
+      "actor": "p26",
+      "power": 3,
+      "value": 100
+    },
+    {
+      "action": "cast",
+      "actor": "p26",
+      "spell": 800496,
+      "target": "d26"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p26",
+      "metric": "spell_damage_total",
+      "spell": 800496,
+      "target": "d26",
+      "relative_to": "d0_26",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Starcaller"
+    },
+    {
+      "action": "assert",
+      "actor": "p26",
+      "metric": "spell_damage_count",
+      "spell": 800496,
+      "target": "d26",
+      "relative_to": "n0_26",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Starcaller"
+    },
+    {
+      "action": "assert",
+      "actor": "p26",
+      "metric": "spell_cast_time_ms",
+      "spell": 800496,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Starcaller"
+    },
+    {
+      "action": "learn",
+      "actor": "p27",
+      "spell": 800231
+    },
+    {
+      "action": "snapshot",
+      "actor": "p27",
+      "metric": "spell_cast_time_ms",
+      "spell": 800231,
+      "save_as": "ct_27"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p27",
+      "metric": "spell_damage_total",
+      "spell": 800231,
+      "target": "d27",
+      "save_as": "d0_27"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p27",
+      "metric": "spell_damage_count",
+      "spell": 800231,
+      "target": "d27",
+      "save_as": "n0_27"
+    },
+    {
+      "action": "cast",
+      "actor": "p27",
+      "spell": 800231,
+      "target": "d27"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p27",
+      "spell": 800231,
+      "target": "d27"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p27",
+      "spell": 800231,
+      "target": "d27"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p27",
+      "spell": 800231,
+      "target": "d27"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p27",
+      "spell": 800231,
+      "target": "d27"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p27",
+      "spell": 800231,
+      "target": "d27"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p27",
+      "spell": 800231,
+      "target": "d27"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p27",
+      "spell": 800231,
+      "target": "d27"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p27",
+      "metric": "spell_damage_total",
+      "spell": 800231,
+      "target": "d27",
+      "relative_to": "d0_27",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Sun Cleric"
+    },
+    {
+      "action": "assert",
+      "actor": "p27",
+      "metric": "spell_damage_count",
+      "spell": 800231,
+      "target": "d27",
+      "relative_to": "n0_27",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Sun Cleric"
+    },
+    {
+      "action": "assert",
+      "actor": "p27",
+      "metric": "spell_cast_time_ms",
+      "spell": 800231,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Sun Cleric"
+    },
+    {
+      "action": "learn",
+      "actor": "p29",
+      "spell": 800869
+    },
+    {
+      "action": "snapshot",
+      "actor": "p29",
+      "metric": "spell_cast_time_ms",
+      "spell": 800869,
+      "save_as": "ct_29"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p29",
+      "metric": "spell_damage_total",
+      "spell": 800869,
+      "target": "d29",
+      "save_as": "d0_29"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p29",
+      "metric": "spell_damage_count",
+      "spell": 800869,
+      "target": "d29",
+      "save_as": "n0_29"
+    },
+    {
+      "action": "cast",
+      "actor": "p29",
+      "spell": 800869,
+      "target": "d29"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p29",
+      "spell": 800869,
+      "target": "d29"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p29",
+      "spell": 800869,
+      "target": "d29"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p29",
+      "spell": 800869,
+      "target": "d29"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p29",
+      "spell": 800869,
+      "target": "d29"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p29",
+      "spell": 800869,
+      "target": "d29"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p29",
+      "spell": 800869,
+      "target": "d29"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p29",
+      "spell": 800869,
+      "target": "d29"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p29",
+      "metric": "spell_damage_total",
+      "spell": 800869,
+      "target": "d29",
+      "relative_to": "d0_29",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Venomancer"
+    },
+    {
+      "action": "assert",
+      "actor": "p29",
+      "metric": "spell_damage_count",
+      "spell": 800869,
+      "target": "d29",
+      "relative_to": "n0_29",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Venomancer"
+    },
+    {
+      "action": "assert",
+      "actor": "p29",
+      "metric": "spell_cast_time_ms",
+      "spell": 800869,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Venomancer"
+    },
+    {
+      "action": "learn",
+      "actor": "p30",
+      "spell": 572342
+    },
+    {
+      "action": "snapshot",
+      "actor": "p30",
+      "metric": "spell_cast_time_ms",
+      "spell": 572342,
+      "save_as": "ct_30"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p30",
+      "metric": "spell_damage_total",
+      "spell": 572342,
+      "target": "d30",
+      "save_as": "d0_30"
+    },
+    {
+      "action": "snapshot",
+      "actor": "p30",
+      "metric": "spell_damage_count",
+      "spell": 572342,
+      "target": "d30",
+      "save_as": "n0_30"
+    },
+    {
+      "action": "cast",
+      "actor": "p30",
+      "spell": 572342,
+      "target": "d30"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p30",
+      "spell": 572342,
+      "target": "d30"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p30",
+      "spell": 572342,
+      "target": "d30"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p30",
+      "spell": 572342,
+      "target": "d30"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p30",
+      "spell": 572342,
+      "target": "d30"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p30",
+      "spell": 572342,
+      "target": "d30"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p30",
+      "spell": 572342,
+      "target": "d30"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "cast",
+      "actor": "p30",
+      "spell": 572342,
+      "target": "d30"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "assert",
+      "actor": "p30",
+      "metric": "spell_damage_total",
+      "spell": 572342,
+      "target": "d30",
+      "relative_to": "d0_30",
+      "min": 0,
+      "max": 999999999,
+      "label": "measure dmg Reaper"
+    },
+    {
+      "action": "assert",
+      "actor": "p30",
+      "metric": "spell_damage_count",
+      "spell": 572342,
+      "target": "d30",
+      "relative_to": "n0_30",
+      "min": 0,
+      "max": 100,
+      "label": "measure cnt Reaper"
+    },
+    {
+      "action": "assert",
+      "actor": "p30",
+      "metric": "spell_cast_time_ms",
+      "spell": 572342,
+      "min": 0,
+      "max": 99999,
+      "label": "measure ct Reaper"
+    }
+  ]
+}
