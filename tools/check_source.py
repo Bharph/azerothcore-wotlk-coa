@@ -39,6 +39,11 @@ SUITES = {
         'paths': ['.github/scripts/*', '.github/workflows/issue-labeler.yml'],
         'commands': [['.github/scripts/test_label_issues.py']],
     },
+    'fold-triage': {
+        'paths': ['.github/scripts/triage_fold.py', '.github/scripts/test_triage_fold.py',
+                  '.github/workflows/fold-triage.yml'],
+        'commands': [['.github/scripts/test_triage_fold.py']],
+    },
     'dbc': {
         'paths': [DBC + '*.py', DBC + 'coa-dbc-viewer', DBC + 'viewer.html',
                   NATIVE_DBC + 'DBCStructure.h', NATIVE_DBC + 'DBCfmt.h'],
