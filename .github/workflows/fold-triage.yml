@@ -1,0 +1,60 @@
+name: Fold PR triage
+on:
+  pull_request:
+    types: [opened, synchronize]
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+concurrency:
+  group: fold-triage-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  triage:
+    # pull_request branch filters match the base branch only; fold branches are matched on the head ref.
+    if: startsWith(github.head_ref, 'fold/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Triage the fold range
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          manifest=()
+          if [ -f .agents/fold-manifest.json ]; then
+            manifest=(--manifest .agents/fold-manifest.json)
+          fi
+          python3 -B .github/scripts/triage_fold.py "$BASE_SHA" "$HEAD_SHA" "${manifest[@]}" \
+            --output triage.json --markdown > triage.md
+      - name: Post or update the sticky triage comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- fold-triage -->'
+          printf '%s\n\n' "$marker" > comment.md
+          cat triage.md >> comment.md
+          existing=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"$marker\")) | .id][0] // empty")
+          if [ -n "$existing" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$existing" -F body=@comment.md
+          else
+            gh api --method POST "repos/$REPO/issues/$PR/comments" -F body=@comment.md
+          fi
+      - name: Apply aggregated flag labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          labels=$(jq -r '[.flag_counts | to_entries[] | select(.value > 0) | .key] | join(",")' triage.json)
+          if [ -n "$labels" ]; then
+            for label in ${labels//,/ }; do
+              gh label create "$label" --repo "$REPO" --color BFD4F2 --force
+            done
+            gh pr edit "$PR" --add-label "$labels" --repo "$REPO"
+          fi
