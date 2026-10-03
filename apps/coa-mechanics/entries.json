@@ -18,7 +18,7 @@
           "source": {
             "path": "src/server/coa/CoAScriptLoader.cpp",
             "anchor": "    AddSC_AscensionResourceTalents();",
-            "reviewed_sha256": "3c6638f0be78d751be7dcb57ae6fe49f3aafa1b7e27871768e50b52df3b99d8c"
+            "reviewed_sha256": "efc5c2fd04742edc56d02ecfed6157ee70e4b9a3eeebc9d6328e562b6c5cf3ea"
           }
         },
         {
@@ -27,7 +27,7 @@
           "source": {
             "path": "src/server/coa/AscensionResourceTalents.cpp",
             "anchor": "            case Replenishment:",
-            "reviewed_sha256": "425b825f74ee0f7f1c7edc7ac49d4fa44b70a400466b18870f9cc6c0dbf20726"
+            "reviewed_sha256": "0e1817260d74798a0dc68ba097a8f70ada7c9cb2fb3cf338c8c0645f5d49b389"
           }
         },
         {
@@ -36,7 +36,7 @@
           "source": {
             "path": "src/server/game/Spells/Auras/SpellAuraEffects.cpp",
             "anchor": "void AuraEffect::PeriodicTick(",
-            "reviewed_sha256": "656b766f7b56186d9a8e0b0456ac58eba08e09bdbc459ff1c970b006106f73ec"
+            "reviewed_sha256": "589baed1795922c84219366ec997c8553349cfb5eb98e0600c2eb26fda1d9eb4"
           }
         },
         {
@@ -45,7 +45,7 @@
           "source": {
             "path": "src/server/game/Spells/Auras/SpellAuraEffects.cpp",
             "anchor": "void AuraEffect::HandleObsModPowerAuraTick(",
-            "reviewed_sha256": "656b766f7b56186d9a8e0b0456ac58eba08e09bdbc459ff1c970b006106f73ec"
+            "reviewed_sha256": "589baed1795922c84219366ec997c8553349cfb5eb98e0600c2eb26fda1d9eb4"
           }
         }
       ],
@@ -68,7 +68,7 @@
           "source": {
             "path": "src/server/coa/AscensionCoATalentData.cpp",
             "anchor": "bool LoadCoATalentData()",
-            "reviewed_sha256": "1071eb29fa10c2e7f3f01effbab972d97230443ad2de3c651ce4e4b4438a6771"
+            "reviewed_sha256": "84d0c353ea10203e6a5bc2f366329bce8857074093db069056a6d192aa9a23d6"
           }
         },
         {
@@ -77,7 +77,7 @@
           "source": {
             "path": "src/server/coa/AscensionCompat.cpp",
             "anchor": "  bool SetTalentRank(Player* player,",
-            "reviewed_sha256": "ac3b9f80e9ace0d21461336f2bc0d041c722c45c3346184e4bb4ec42ca73c400"
+            "reviewed_sha256": "0e05bc1c32d493b3e7b6275165808671c730cb41b12ec9556463b345c4e0c766"
           }
         },
         {
@@ -86,7 +86,7 @@
           "source": {
             "path": "src/server/coa/AscensionCompat.cpp",
             "anchor": "  bool ApplyKnownEntriesUpload(Player* player,",
-            "reviewed_sha256": "ac3b9f80e9ace0d21461336f2bc0d041c722c45c3346184e4bb4ec42ca73c400"
+            "reviewed_sha256": "0e05bc1c32d493b3e7b6275165808671c730cb41b12ec9556463b345c4e0c766"
           }
         }
       ],
@@ -118,7 +118,7 @@
           "source": {
             "path": "src/server/game/Entities/Player/PlayerQuest.cpp",
             "anchor": "bool Player::CanTakeQuest(Quest const* quest, bool msg)",
-            "reviewed_sha256": "104ba869a1f59c7ef242c69cf48dd3c4ab46140b9f00a8325810d41be3522dd0"
+            "reviewed_sha256": "4662200a4b7e06b7d068c2cf89ed2e2d0f6a9aeb36df9607c4e95c0f14c5f730"
           }
         },
         {
@@ -136,7 +136,7 @@
           "source": {
             "path": "src/server/game/Entities/Player/PlayerQuest.cpp",
             "anchor": "void Player::RewardQuest(",
-            "reviewed_sha256": "104ba869a1f59c7ef242c69cf48dd3c4ab46140b9f00a8325810d41be3522dd0"
+            "reviewed_sha256": "4662200a4b7e06b7d068c2cf89ed2e2d0f6a9aeb36df9607c4e95c0f14c5f730"
           }
         }
       ],
@@ -167,7 +167,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "bool HandlePacket(Player* player, WorldPacket const& packet)",
-            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
+            "reviewed_sha256": "e15f7c3b6027a489a4a90a4b369bbb3d634739b0503fb0b15d32b9e2e92e9270"
           }
         },
         {
@@ -176,7 +176,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "bool CanUseBall(Player* player, Creature const* ball)",
-            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
+            "reviewed_sha256": "e15f7c3b6027a489a4a90a4b369bbb3d634739b0503fb0b15d32b9e2e92e9270"
           }
         },
         {
@@ -185,7 +185,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "bool Accept(Player* player, Creature* ball, Quest const* quest)",
-            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
+            "reviewed_sha256": "e15f7c3b6027a489a4a90a4b369bbb3d634739b0503fb0b15d32b9e2e92e9270"
           }
         },
         {
@@ -194,7 +194,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "            if (player->CanRewardQuest(quest, reward, true))",
-            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
+            "reviewed_sha256": "e15f7c3b6027a489a4a90a4b369bbb3d634739b0503fb0b15d32b9e2e92e9270"
           }
         }
       ],
@@ -227,7 +227,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "void AddSC_AscensionWisdomball()",
-            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
+            "reviewed_sha256": "e15f7c3b6027a489a4a90a4b369bbb3d634739b0503fb0b15d32b9e2e92e9270"
           }
         },
         {
@@ -236,7 +236,7 @@
           "source": {
             "path": "src/server/coa/AscensionWisdomball.cpp",
             "anchor": "class npc_wondrous_wisdomball : public CreatureScript",
-            "reviewed_sha256": "92987ad2b2c5aaedad0de3979a0620083b39b8505ab81d4864bbb9cd948a487a"
+            "reviewed_sha256": "e15f7c3b6027a489a4a90a4b369bbb3d634739b0503fb0b15d32b9e2e92e9270"
           }
         }
       ],
