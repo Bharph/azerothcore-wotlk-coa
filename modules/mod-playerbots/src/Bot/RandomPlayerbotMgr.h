@@ -45,6 +45,11 @@ struct BattlegroundInfo
     // Players (Battleground)
     uint32 bgHordePlayerCount = 0;
     uint32 bgAlliancePlayerCount = 0;
+
+    // Where a real player waits: how many more of each faction the core queue needs before the
+    // battleground can start (its minimum per team), taken down as bots join.
+    uint32 bgAllianceMissing = 0;
+    uint32 bgHordeMissing = 0;
 };
 
 class ChatHandler;

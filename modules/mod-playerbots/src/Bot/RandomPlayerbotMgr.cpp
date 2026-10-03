@@ -5,6 +5,7 @@
  */
 
 #include "RandomPlayerbotMgr.h"
+#include "BattlegroundUtils.h"
 #include "AiFactory.h"
 #include "Battleground.h"
 #include "BattlegroundMgr.h"
@@ -1011,6 +1012,37 @@ void RandomPlayerbotMgr::CheckBgQueue()
                     BattlegroundData[queueTypeId][bracketId].activeBgQueue = 1;
                 }
             }
+        }
+    }
+
+    // A real player's battleground starts only once each faction holds its minimum in the core queue:
+    // "21/20" was announced for a random battleground that never started, the 21 almost all of one
+    // faction (jealous-sound #5826). What each faction still lacks is read from the queue itself.
+    for (int bracket = BG_BRACKET_ID_FIRST; bracket < MAX_BATTLEGROUND_BRACKETS; ++bracket)
+    {
+        for (int queueType = BATTLEGROUND_QUEUE_AV; queueType < MAX_BATTLEGROUND_QUEUE_TYPES; ++queueType)
+        {
+            BattlegroundInfo& info = BattlegroundData[queueType][bracket];
+            if (!info.activeBgQueue || !(info.bgAlliancePlayerCount + info.bgHordePlayerCount) ||
+                BattlegroundMgr::BGArenaType(BattlegroundQueueTypeId(queueType)))
+                continue;
+
+            Battleground* bg =
+                sBattlegroundMgr->GetBattlegroundTemplate(BattlegroundMgr::BGTemplateId(BattlegroundQueueTypeId(queueType)));
+            PvPDifficultyEntry const* bracketEntry =
+                bg ? GetBattlegroundBracketById(bg->GetMapId(), BattlegroundBracketId(bracket)) : nullptr;
+            if (!bracketEntry)
+                continue;
+
+            uint32 const needed = GetMinPlayersPerTeam(bg, bracketEntry);
+            BattlegroundQueue& queue = sBattlegroundMgr->GetBattlegroundQueue(BattlegroundQueueTypeId(queueType));
+            uint32 const alliance = queue.GetPlayersCountInGroupsQueue(BattlegroundBracketId(bracket), BG_QUEUE_NORMAL_ALLIANCE);
+            uint32 const horde = queue.GetPlayersCountInGroupsQueue(BattlegroundBracketId(bracket), BG_QUEUE_NORMAL_HORDE);
+            info.bgAllianceMissing = needed > alliance ? needed - alliance : 0;
+            info.bgHordeMissing = needed > horde ? needed - horde : 0;
+            if (info.bgAllianceMissing || info.bgHordeMissing)
+                LOG_DEBUG("playerbots", "BG queue {} bracket {}: {} Alliance and {} Horde queued, {} each needed",
+                          queueType, bracket, alliance, horde, needed);
         }
     }
 

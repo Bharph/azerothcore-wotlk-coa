@@ -2327,6 +2327,17 @@ namespace lfg
 
     }
 
+    LFGDungeonData const* LFGMgr::GetClassicRandomFallback(uint32 completedDungeonId)
+    {
+        LFGDungeonData const* completed = GetLFGDungeon(completedDungeonId);
+        if (!completed || completed->type != LFG_TYPE_DUNGEON || completed->seasonal || completed->expansion != 0 ||
+            completed->difficulty != DUNGEON_DIFFICULTY_NORMAL)
+            return nullptr;
+
+        LFGDungeonData const* random = GetLFGDungeon(LFG_DUNGEON_RANDOM_CLASSIC);
+        return random && random->type == LFG_TYPE_RANDOM ? random : nullptr;
+    }
+
     /**
        Finish a dungeon and give reward, if any.
 
@@ -2380,6 +2391,16 @@ namespace lfg
 
             if (!dungeon || (dungeon->type != LFG_TYPE_RANDOM && !dungeon->seasonal))
             {
+                if (LFGDungeonData const* classicRandom = GetClassicRandomFallback(dungeonId))
+                {
+                    rDungeonId = classicRandom->id;
+                    dungeon = classicRandom;
+                    rewardDungeonId = classicRandom->id;
+                }
+            }
+
+            if (!dungeon || (dungeon->type != LFG_TYPE_RANDOM && !dungeon->seasonal))
+            {
                 LFGDungeonData const* cleared = GetLFGDungeon(dungeonId);
                 rewardDungeonId = rewardEveryCompletion && cleared
                     ? GetRandomDungeonContaining(dungeonId, cleared->difficulty)
@@ -2389,6 +2410,12 @@ namespace lfg
                 {
                     LOG_DEBUG("lfg", "LFGMgr::FinishDungeon: [{}] dungeon {} is not random or seasonal", guid.ToString(), rDungeonId);
                     continue;
+                }
+
+                if (LFGDungeonData const* rewardDungeon = GetLFGDungeon(rewardDungeonId))
+                {
+                    rDungeonId = rewardDungeonId;
+                    dungeon = rewardDungeon;
                 }
             }
 

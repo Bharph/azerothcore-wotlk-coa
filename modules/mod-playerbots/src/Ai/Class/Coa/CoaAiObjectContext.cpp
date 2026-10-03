@@ -37,6 +37,11 @@
 #include <tuple>
 #include <vector>
 
+// CoaBossKnowledge.cpp: "coa boss dodge", out of the way of the casts of dungeon and raid enemies.
+Strategy* NewCoaBossDodgeStrategy(PlayerbotAI* botAI);
+Action* NewCoaBossDodgeAction(PlayerbotAI* botAI);
+Trigger* NewCoaBossDangerTrigger(PlayerbotAI* botAI);
+
 // CoaGroupTelemetry.cpp: counts a taunt, a heal tried, or an interrupt, in the group fight being measured.
 void CoaTelemetryNoteTaunt(Player* bot);
 void CoaTelemetryNoteHeal(Player* bot, uint32 spellId, uint16 outcome);
@@ -3075,6 +3080,9 @@ public:
         creators["coa buff"] = &CoaNonCombatStrategyFactoryInternal::coa_buff;
         creators["coa auto pull"] = &CoaNonCombatStrategyFactoryInternal::coa_auto_pull;
         creators["nc"] = &CoaNonCombatStrategyFactoryInternal::nc;
+        // Here, not with the role strategies above: those are siblings, and adding one removes the
+        // others - registered there, "coa boss dodge" took "coa" itself away from every bot (01/10).
+        creators["coa boss dodge"] = &NewCoaBossDodgeStrategy;
     }
 
 private:
@@ -3104,6 +3112,7 @@ public:
         creators["coa auto pull"] = &CoaActionFactoryInternal::coa_auto_pull;
         creators["coa resurrect"] = &CoaActionFactoryInternal::coa_resurrect;
         creators["coa catch up"] = &CoaActionFactoryInternal::coa_catch_up;
+        creators["coa boss dodge"] = &NewCoaBossDodgeAction;
     }
 
 private:
@@ -3147,6 +3156,7 @@ public:
         creators["coa out of healing reach"] = &CoaTriggerFactoryInternal::coa_out_of_healing_reach;
         creators["coa healer low mana"] = &CoaTriggerFactoryInternal::coa_healer_low_mana;
         creators["coa loose enemy"] = &CoaTriggerFactoryInternal::coa_loose_enemy;
+        creators["coa boss danger"] = &NewCoaBossDangerTrigger;
     }
 
 private:

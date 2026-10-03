@@ -103,6 +103,7 @@ namespace AscensionVenomancer { bool Resource(Player*, uint32, int32) { return f
 namespace AscensionTinker { bool Resource(Player*, uint32, int32) { return false; } }
 namespace AscensionSunCleric { bool Resource(Player*, uint32, int32) { return false; } }
 namespace AscensionFelsworn { void Generated(Player*, uint32) { } }
+bool HandleAscensionPrimalistEarthshapingGain(Player*) { return false; }
 struct Spell
 {
     Player* owner;

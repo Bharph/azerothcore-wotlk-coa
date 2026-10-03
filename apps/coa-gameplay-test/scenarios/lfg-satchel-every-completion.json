@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "name": "Dungeon Finder pays the satchel for a specific-pick dungeon, first run and repeat (trikyn-live-ops#28)",
+  "contract": "On a realm that cannot fill a random queue, a party that PICKS a specific dungeon (Scarlet Monastery - Library, 165) and completes it still earns the Dungeon Finder completion of its bracket (trikyn-live-ops#28): LFGMgr::FinishDungeon resolves the non-random selection to the classic random entry 258, whose 25-34 reward row pays the first-run Satchel of Helpful Goods 51999 at level 33, and with Ascension.LFG.RewardEveryCompletion (default on) a repeat completion the same day pays the same satchel again through GrantLfgDungeonReward instead of the reduced repeat reward with Rune of Descension 375250. Arcanist Doan (6487) is the final encounter of dungeon 165, credited through the same encounter path lfg-final-boss-reward uses.",
+  "timeout_ms": 180000,
+  "location": { "map": 0, "x": -8914.0, "y": -133.0, "z": 80.6 },
+  "players": [
+    { "id": "leader", "race": 1, "class": 1, "level": 33 },
+    { "id": "seeker", "race": 1, "class": 1, "level": 33 }
+  ],
+  "steps": [
+    { "action": "wait", "ms": 3000 },
+    { "action": "group", "actor": "leader", "target": "seeker" },
+    { "action": "lfg_dungeon", "label": "The party picks Scarlet Monastery - Library", "actor": "leader", "dungeon": 165 },
+    { "action": "lfg_teleport", "actor": "leader" },
+    { "action": "lfg_teleport", "actor": "seeker" },
+    { "action": "assert", "label": "The leader enters Scarlet Monastery", "actor": "leader", "metric": "map_id", "equals": 189, "within_ms": 20000 },
+    { "action": "assert", "label": "The seeker enters Scarlet Monastery", "actor": "seeker", "metric": "map_id", "equals": 189, "within_ms": 20000 },
+    { "action": "assert", "label": "The leader holds no satchel yet", "actor": "leader", "metric": "item_count", "item": 51999, "equals": 0 },
+    { "action": "encounter_credit", "label": "Arcanist Doan, final encounter of the Library, is credited", "actor": "leader", "entry": 6487 },
+    { "action": "assert", "label": "The first completion pays the leader the satchel", "actor": "leader", "metric": "item_count", "item": 51999, "min": 1, "within_ms": 20000 },
+    { "action": "assert", "label": "The first completion pays the seeker the satchel", "actor": "seeker", "metric": "item_count", "item": 51999, "min": 1, "within_ms": 20000 },
+    { "action": "leave_group", "actor": "leader" },
+    { "action": "leave_group", "actor": "seeker" },
+    { "action": "wait", "ms": 2000 },
+    { "action": "group", "actor": "leader", "target": "seeker" },
+    { "action": "lfg_dungeon", "label": "The party picks the Library again the same day", "actor": "leader", "dungeon": 165 },
+    { "action": "lfg_teleport", "actor": "leader" },
+    { "action": "lfg_teleport", "actor": "seeker" },
+    { "action": "assert", "label": "The leader re-enters Scarlet Monastery", "actor": "leader", "metric": "map_id", "equals": 189, "within_ms": 20000 },
+    { "action": "encounter_credit", "label": "Arcanist Doan is credited again", "actor": "leader", "entry": 6487 },
+    { "action": "assert", "label": "The repeat completion pays the leader a second satchel", "actor": "leader", "metric": "item_count", "item": 51999, "min": 2, "within_ms": 20000 },
+    { "action": "assert", "label": "The leader did not receive the reduced repeat Rune of Descension", "actor": "leader", "metric": "item_count", "item": 375250, "equals": 0 }
+  ]
+}

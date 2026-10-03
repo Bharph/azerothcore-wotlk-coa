@@ -7,6 +7,7 @@
 #include "Playerbots.h"
 #include "CoaSpecialization.h"
 #include "BattleGroundTactics.h"
+#include "CoaBossKnowledge.h"
 #include "BattlefieldScript.h"
 #include "Channel.h"
 #include "Config.h"
@@ -24,7 +25,7 @@
 #include "cmath"
 
 // Shown to players at login: bump it with every CoA Bots release.
-static constexpr char const* COA_BOTS_VERSION = "1.6";
+static constexpr char const* COA_BOTS_VERSION = "1.7";
 
 class PlayerbotsDatabaseScript : public DatabaseScript
 {
@@ -399,6 +400,9 @@ public:
         LOG_INFO("server.loading", " ");
 
         PlayerbotSpellRepository::Instance().Initialize();
+
+        if (sPlayerbotAIConfig.coaBossKnowledge)
+            CoaBossKnowledge::Load();
 
         LOG_INFO("server.loading", "Playerbots World Thread Processor initialized");
     }

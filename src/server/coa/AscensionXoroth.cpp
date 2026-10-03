@@ -73,30 +73,6 @@ void Replace(Player* player, uint32 root, uint32 replacement)
             player->SetTemporarySpellReplacement(pair.first, replacement);
 }
 
-void ReplaceWarbringer(Player* player, bool active)
-{
-    static constexpr uint32 flames[7] = { 801059, 802411, 802412, 802413, 802414, 802415, 573448 };
-    static constexpr uint32 warbringer[6] = { 802581, 802582, 802583, 802584, 802585, 802586 };
-    for (auto const& pair : player->GetSpellMap())
-    {
-        if (!player->HasSpell(pair.first) || !Named(sSpellMgr->GetSpellInfo(pair.first), 801059))
-            continue;
-        if (!active)
-        {
-            player->SetTemporarySpellReplacement(pair.first, 0);
-            continue;
-        }
-        uint32 rank = 1;
-        for (uint32 i = 0; i < 7; ++i)
-            if (flames[i] == pair.first)
-            {
-                rank = i + 1;
-                break;
-            }
-        player->SetTemporarySpellReplacement(pair.first, warbringer[std::min<uint32>(rank, 6) - 1]);
-    }
-}
-
 bool Spender(SpellInfo const* info)
 {
     for (uint32 root : {520292, 524897, 524920, 806965, 801059, 800168, 801063, 802342, 802581, 803334, 803889})
@@ -186,6 +162,12 @@ void Blood(Player* player)
         Unleash(player, player, .5f);
     Refresh(player);
 }
+void SetRemainingUses(Aura* aura, uint8 uses)
+{
+    aura->SetScriptValue(aura->GetId(), uses);
+    aura->SetCharges(uses);
+    aura->SetUsingCharges(false);
+}
 void Refresh(Player* player)
 {
     auto& state = State(player);
@@ -229,6 +211,13 @@ void Refresh(Player* player)
         effect->ChangeAmount(Count(player, 500906));
 
     scale(573075, player->HasAura(573035) ? player->GetUInt32Value(PLAYER_FIELD_COMBAT_RATING_1 + CR_BLOCK) / 2 : 0);
+    if (player->HasAura(800710) && !player->HasSpell(520005))
+        player->learnSpell(520005);
+    if (!player->HasAura(800710) && player->HasSpell(520005))
+    {
+        Replace(player, 500904, 0);
+        player->removeSpell(520005, SPEC_MASK_ALL, false);
+    }
     for (auto const& replacement : {std::array<uint32, 3>{800710, 500904, 520005},
                                     {570727, 801059, 802581},
                                     {807587, 801059, 520292}})
@@ -238,10 +227,7 @@ void Refresh(Player* player)
             continue;
         if (talent == 807587 && player->HasAura(570727) && !player->HasAura(807587))
             continue;
-        if (replacement[1] == 801059 && replacement[2] == 802581)
-            ReplaceWarbringer(player, player->HasAura(talent));
-        else
-            Replace(player, replacement[1], player->HasAura(talent) ? replacement[2] : 0);
+        Replace(player, replacement[1], player->HasAura(talent) ? replacement[2] : 0);
     }
     bool impTalent = player->HasAura(92101) || player->HasAura(704993);
     if (impTalent && !player->HasSpell(520661))

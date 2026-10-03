@@ -26,7 +26,9 @@ bool AcceptInvitationAction::Execute(Event /*event*/)
     // Offered to this player by "lfg bot": it said yes already, whatever its own invitation rules.
     bool const offered = CoaLfgTakeOffer(bot, inviter);
 
-    if (!offered && !botAI->GetSecurity()->CheckLevelFor(PLAYERBOT_SECURITY_INVITE, false, inviter))
+    // Offered to someone else: it waits for that player's invitation.
+    if (!offered && (CoaLfgOfferedToOther(bot, inviter) ||
+                     !botAI->GetSecurity()->CheckLevelFor(PLAYERBOT_SECURITY_INVITE, false, inviter)))
     {
         WorldPacket data(SMSG_GROUP_DECLINE, 10);
         data << bot->GetName();

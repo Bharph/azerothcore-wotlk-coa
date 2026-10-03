@@ -91,6 +91,7 @@ public:
     // quests of the class they fall back on (a Knight of Xoroth takes warrior quests), and with them
     // that class's spells (Berserker Stance from "The Affray", jealous-sound #5714).
     static bool IsCoaForeignClassSpell(Player* bot, uint32 spellId);
+    static bool IsCoaWorldforged(uint32 itemId);
     void InitPet();
     void InitAmmo();
     static uint32 CalcMixedGearScore(uint32 gs, uint32 quality);
