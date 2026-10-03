@@ -76,7 +76,11 @@ class aura_ascension_xoroth_lifecycle : public AuraScript
         if (id == 524913)
             SetRemainingUses(GetAura(), 5);
         if (id == 524920)
-            SetRemainingUses(GetAura(), uint8(6 + State(player).fire));
+        {
+            uint32 attacks = 6 + State(player).fire;
+            player->ApplySpellMod(id, SPELLMOD_CHARGES, attacks);
+            SetRemainingUses(GetAura(), uint8(attacks));
+        }
         if (id == 712294)
             Replace(player, 800340, 504581);
         if (id == 800999 || id == 92104)
