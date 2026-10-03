@@ -6153,6 +6153,7 @@ public:
         {"demorphpreset", HandleDemorphPresetCommand, SEC_ADMINISTRATOR, Console::No},
         {"localreloadoutfits", HandleLocalReloadPresetsCommand, SEC_ADMINISTRATOR, Console::Yes},
         {"morphoutfit", HandleMorphPresetCommand, SEC_ADMINISTRATOR, Console::No},
+        {"localvanity", HandleLocalVanityCommand, SEC_PLAYER, Console::No},
         {"localresource", HandleLocalResourceCommand, SEC_PLAYER,
          Console::No},
         {"localtime", HandleLocalTimeCommand, SEC_GAMEMASTER, Console::No},
@@ -6250,6 +6251,15 @@ public:
 
   static bool HandleLocalResourceCommand(ChatHandler *handler) {
     AscensionResourceService::Instance().SendStatus(handler);
+    return true;
+  }
+
+  static bool HandleLocalVanityCommand(ChatHandler *handler, uint32 itemId) {
+    Player *player = handler->GetPlayer();
+    if (!player)
+      return false;
+
+    AscensionCollectionService::Instance().DeliverVanityItem(player, itemId);
     return true;
   }
 
