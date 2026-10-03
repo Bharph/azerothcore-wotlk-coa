@@ -303,6 +303,8 @@ struct CompatConfig
     }
 } ascensionCompatConfig;
 
+constexpr uint32 EXPANSION_CLASSIC = 0;
+constexpr uint32 EXPANSION_THE_BURNING_CRUSADE = 1;
 constexpr uint32 EXPANSION_WRATH_OF_THE_LICH_KING = 2;
 
 struct RealmHandle
@@ -316,9 +318,16 @@ struct
     std::string Name = "Conquest of Azeroth";
 } realm;
 
+enum ServerConfigs
+{
+    CONFIG_MAX_PLAYER_LEVEL
+};
+
 struct World
 {
+    uint32 MaxPlayerLevel = 80;
     std::string GetRealmName() const { return "unset world realm name"; }
+    uint32 getIntConfig(ServerConfigs) const { return MaxPlayerLevel; }
 } world;
 
 World* sWorld = &world;
@@ -424,6 +433,7 @@ struct AscensionCompatCommandScript
 
 struct RealmInfo
 {
+    uint32 Ruleset = 0;
     std::vector<uint8> Flags;
     std::string DataPath;
     std::string Name;
@@ -443,7 +453,9 @@ RealmInfo Decode(WorldPacket packet)
 {
     RealmInfo info;
     packet.rpos(0);
-    packet.read_skip(2 * sizeof(uint32) + 3 * sizeof(float) + sizeof(uint32) + 2 * sizeof(float) + sizeof(uint32));
+    packet.read_skip(sizeof(uint32));
+    info.Ruleset = packet.read<uint32>();
+    packet.read_skip(3 * sizeof(float) + sizeof(uint32) + 2 * sizeof(float) + sizeof(uint32));
     for (int flag = 0; flag < 8; ++flag)
         info.Flags.push_back(packet.read<uint8>());
     info.DataPath = ReadString(packet);
@@ -472,6 +484,14 @@ void TestRealmInfo()
         "realm info names the realm the auth database lists in the realm-name string");
     Check(live.AddOnsAllowed == 1, "realm info tells the stock client that add-ons are allowed");
     Check(live.Flags == std::vector<uint8>{1, 0, 0, 0, 0, 0, 1, 0}, "live CoA realm flags are unchanged");
+    Check(live.Ruleset == EXPANSION_WRATH_OF_THE_LICH_KING, "a level-80 realm keeps the Wrath ruleset");
+    world.MaxPlayerLevel = 70;
+    Check(SendRealmInfo("seasonal", "coa").Ruleset == EXPANSION_THE_BURNING_CRUSADE,
+        "a level-70 realm sends the Burning Crusade ruleset, whose level cap the client shows");
+    world.MaxPlayerLevel = 60;
+    Check(SendRealmInfo("seasonal", "coa").Ruleset == EXPANSION_CLASSIC,
+        "a level-60 realm sends the Classic ruleset, whose level cap the client shows");
+    world.MaxPlayerLevel = 80;
 
     bool allowedEverywhere = true;
     for (char const* realmType : {"live", "seasonal", "league", "ptr", "development"})
@@ -1067,6 +1087,26 @@ void TestTalentRequests()
         "the native known-entries upload and talent reset are consumed and queued for the account");
 }
 
+void TestCoreHandledRequests()
+{
+    WorldSession session;
+    Check(Receive(session, WorldPacket(CMSG_RESET_DUNGEONS, 0)),
+        "the portrait menu's reset all dungeons reaches the core handler");
+    Check(Receive(session, WorldPacket(CMSG_PORT_GRAVEYARD, 0)),
+        "the ghost frame's return to graveyard reaches the core handler");
+    Check(Receive(session, WorldPacket(CMSG_TAXI_REQUEST_EARLY_LANDING, 0)),
+        "the flight's early landing request reaches the core handler");
+    WorldPacket deletePet(CMSG_STABLE_DELETE_PET, 4);
+    deletePet << uint32(1);
+    Check(Receive(session, deletePet), "the stable window's delete request reaches the core handler");
+    Check(Receive(session, WorldPacket(CMSG_QUERY_INSTANCE_BINDS, 0)),
+        "the instance bind query reaches the core handler");
+    WorldPacket resetInstance(CMSG_RESET_INSTANCE, 5);
+    resetInstance << uint32(36) << uint8(0);
+    Check(Receive(session, resetInstance), "the single instance reset reaches the core handler");
+    Check(session.Sent.empty(), "the early hook answers none of the requests the core handles");
+}
+
 int main()
 {
     TestRealmInfo();
@@ -1075,6 +1115,7 @@ int main()
     TestWorldEntryResend();
     TestStorePackets();
     TestTalentRequests();
+    TestCoreHandledRequests();
     TestItemQueries();
     TestVanityDelivery();
     TestRejectedPacketWarnings();
