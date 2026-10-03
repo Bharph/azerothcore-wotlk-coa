@@ -695,6 +695,52 @@ class RunnerTests(unittest.TestCase):
                 run.stage_modules(source, destination, {'WorldDatabaseInfo'})
             self.assertEqual(existing.read_text(), 'Rate.XP.Kill = 5\n')
 
+    def core_connections(self):
+        return {'LoginDatabaseInfo': '127.0.0.1;3306;u;p;acore_auth',
+                'CharacterDatabaseInfo': '127.0.0.1;3306;u;p;acore_characters',
+                'WorldDatabaseInfo': '127.0.0.1;3306;u;p;acore_world'}
+
+    def test_module_database_connection_is_read_from_module_configs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            modules = Path(temporary) / 'modules'
+            modules.mkdir()
+            (modules / 'playerbots.conf').write_text(
+                'AiPlayerbot.Enabled = 1\nPlayerbotsDatabaseInfo = "127.0.0.1;3306;u;p;acore_playerbots"\n')
+            connections = run.source_connections(self.core_connections(), module_dir=modules)
+        self.assertIn('playerbots', connections)
+        self.assertEqual(connections['playerbots'].database, 'acore_playerbots')
+
+    def test_module_database_is_optional_when_absent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            modules = Path(temporary) / 'modules'
+            modules.mkdir()
+            connections = run.source_connections(self.core_connections(), module_dir=modules)
+        self.assertNotIn('playerbots', connections)
+
+    def test_module_database_override_reaches_the_generated_main_config(self):
+        connections = {role: run.Connection('127.0.0.1', 3306, 'u', 'p', database) for role, database in (
+            ('auth', 'acore_auth'), ('characters', 'acore_characters'),
+            ('world', 'acore_world'), ('playerbots', 'acore_playerbots'))}
+        names = {role: f'coa_test_012345abcdef_{role}' for role in connections}
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary)
+            overrides = run.harness_overrides(connections, names, path, path, path, '012345abcdef', '012345abcdef',
+                                              {'scenario': path / 's.json', 'result': path / 'r.json'})
+        self.assertEqual(overrides['PlayerbotsDatabaseInfo'],
+                         '127.0.0.1;3306;u;p;coa_test_012345abcdef_playerbots')
+
+    def test_staged_module_configs_drop_the_harness_owned_playerbots_database(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            source = directory / 'modules'
+            source.mkdir()
+            (source / 'playerbots.conf').write_text(
+                'AiPlayerbot.Enabled = 1\nPlayerbotsDatabaseInfo = "127.0.0.1;3306;u;p;acore_playerbots"\n')
+            staged = run.stage_modules(source, directory / 'run' / 'configs' / 'modules', run.reserved_settings())
+            text = staged[0].read_text()
+        self.assertIn('AiPlayerbot.Enabled = 1', text)
+        self.assertNotIn('PlayerbotsDatabaseInfo', text)
+
     @unittest.skipIf(run.os.name == 'nt', 'Windows reads module configs relative to the working directory')
     def test_server_module_directory_is_required_outside_windows(self):
         scenario = str(Path(__file__).parent / 'scenarios' / 'frostbolt.json')

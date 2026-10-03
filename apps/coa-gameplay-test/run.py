@@ -831,8 +831,8 @@ class Databases:
             self.sql(role, f'CREATE DATABASE `{name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;')
             self.created.append(role)
             print(f'Preparing isolated {role} database...', flush=True)
-            self.copy(role, schema_only=(role != 'world'))
-            if role != 'world':
+            self.copy(role, schema_only=(role not in FULL_COPY_ROLES))
+            if role not in FULL_COPY_ROLES:
                 tables = ['updates', 'updates_include']
                 if role == 'auth':
                     tables += ['rbac_permissions', 'rbac_linked_permissions', 'rbac_default_permissions', 'realmlist']
@@ -861,6 +861,8 @@ def unused_port():
 
 
 DATABASE_SETTINGS = {'auth': 'LoginDatabaseInfo', 'characters': 'CharacterDatabaseInfo', 'world': 'WorldDatabaseInfo'}
+MODULE_DATABASE_SETTINGS = {'playerbots': 'PlayerbotsDatabaseInfo'}
+FULL_COPY_ROLES = {'world', 'playerbots'}
 RUN_SETTINGS = ('DataDir', 'SourceDirectory', 'LogsDir', 'TempDir', 'WorldServerPort', 'CoAGameplayTest.RunId',
                 'CoAGameplayTest.WorldDatabaseId')
 SERVER_SETTINGS = {
@@ -881,8 +883,23 @@ def reserved_settings():
             *(f'CoAGameplayTest.{name}' for name in (*HARNESS_FILES.values(), *CLOCK_SETTINGS))}
 
 
-def source_connections(config, client_config=None):
+def module_connections(module_dir):
+    if not module_dir:
+        return {}
+    values = {}
+    for path in sorted(Path(module_dir).glob('*.conf')):
+        values.update(read_config(path))
+    result = {}
+    for role, key in MODULE_DATABASE_SETTINGS.items():
+        value = os.environ.get(env_var_name(key)) or values.get(key)
+        if value:
+            result[role] = Connection.parse(value)
+    return result
+
+
+def source_connections(config, client_config=None, module_dir=None):
     connections = {role: Connection.parse(source_setting(config, key)) for role, key in DATABASE_SETTINGS.items()}
+    connections.update(module_connections(module_dir))
     if client_config:
         connections = database_credentials(connections, client_config)
     return connections
@@ -901,7 +918,9 @@ def harness_overrides(connections, names, data_dir, logs, private, run_id, world
     clock = clock or {}
     unknown = clock.keys() - CLOCK_SETTINGS.keys()
     require(not unknown, f'Unknown clock settings: {sorted(unknown)}')
-    overrides = {key: connections[role].with_database(names[role]) for role, key in DATABASE_SETTINGS.items()}
+    database_keys = {**DATABASE_SETTINGS, **{role: key for role, key in MODULE_DATABASE_SETTINGS.items()
+                                              if role in connections}}
+    overrides = {key: connections[role].with_database(names[role]) for role, key in database_keys.items()}
     overrides.update(zip(RUN_SETTINGS, (data_dir.as_posix(), ROOT.as_posix(), logs.as_posix(), private.as_posix(),
                                         unused_port(), run_id, world_id)))
     overrides.update(SERVER_SETTINGS)
@@ -918,7 +937,9 @@ def world_cache_info(cache):
 def prepare_databases(database, cache, refresh=False):
     if cache:
         cache.prepare(refresh=refresh)
-    database.prepare(roles=('auth', 'characters') if cache else ('auth', 'characters', 'world'))
+    roles = ['auth', 'characters'] if cache else ['auth', 'characters', 'world']
+    roles += [role for role in MODULE_DATABASE_SETTINGS if role in database.names]
+    database.prepare(roles=tuple(roles))
 
 
 def release_databases(database, cache, server_still_running, summary):
@@ -948,6 +969,21 @@ def write_config(source, destination, overrides):
     destination.chmod(0o600)
 
 
+def strip_module_database_settings(data):
+    keys = set(MODULE_DATABASE_SETTINGS.values())
+    kept = []
+    changed = False
+    for line in data.decode('utf-8-sig').splitlines():
+        match = re.match(r'^\s*([A-Za-z0-9_.]+)\s*=', line)
+        if match and match.group(1) in keys:
+            changed = True
+            continue
+        kept.append(line)
+    if not changed:
+        return data
+    return ('\n'.join(kept) + '\n').encode('utf-8')
+
+
 def check_no_reserved_overrides(path, reserved):
     settings = read_config(path)
     require(not settings.keys() & reserved
@@ -969,7 +1005,7 @@ def stage_modules(source, destination, reserved):
             target.parent.mkdir(parents=True, exist_ok=True)
             with target.open('xb') as staged_file:
                 staged.append(target)
-                staged_file.write(path.read_bytes())
+                staged_file.write(strip_module_database_settings(path.read_bytes()))
             target.chmod(0o600)
         return staged
     except BaseException:
@@ -1089,7 +1125,8 @@ def execute(args, scenario):
     mysql = args.mysql.resolve(strict=True)
     dump = args.mysqldump.resolve(strict=True)
     config = read_config(source_config)
-    connections = source_connections(config, args.database_client_config)
+    connections = source_connections(config, args.database_client_config,
+                                     args.modules_config_dir or source_config.parent / 'modules')
     run_id = secrets.token_hex(6)
     output = (args.output or ROOT / '.cache' / 'coa-gameplay-tests' / run_id).resolve()
     output.mkdir(parents=True, exist_ok=False)
