@@ -1337,6 +1337,7 @@ public:
     SynchronizeProgression(player);
     SynchronizeProficiencies(player);
     RepairStarterKit(player, false);
+    ReapplyTalentPassives(player);
     QueueCharacterAdvancementState(player);
 
     CharacterDatabasePreparedStatement* actionsStmt =
@@ -1351,6 +1352,34 @@ public:
             if (Player* owner = session->GetPlayer())
                 owner->LoadActions(result);
         }));
+  }
+
+  void ReapplyTalentPassives(Player* player)
+  {
+    if (!IsAscensionCustomClass(player))
+      return;
+
+    std::vector<uint32> pending;
+    for (AscensionCompatData::CoATalentEntry const& entry : AscensionCompatData::CoATalentEntries)
+    {
+      if (entry.ClassId != player->getClass())
+        continue;
+      for (uint32 spellId : entry.SpellIds)
+      {
+        if (!spellId || !player->HasSpell(spellId))
+          continue;
+        SpellInfo const* info = sSpellMgr->GetSpellInfo(spellId);
+        if (!info || !info->IsPassive())
+          continue;
+        if (player->HasAura(spellId) || !player->IsNeedCastPassiveSpellAtLearn(info))
+          continue;
+        pending.push_back(spellId);
+      }
+    }
+
+    for (uint32 spellId : pending)
+      if (player->HasSpell(spellId) && !player->HasAura(spellId))
+        player->CastSpell(player, spellId, true);
   }
 
   void PrepareTaughtAbilitiesBeforeMap(Player* player)

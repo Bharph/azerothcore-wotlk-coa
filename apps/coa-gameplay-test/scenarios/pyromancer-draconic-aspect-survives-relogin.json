@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "name": "Pyromancer: Draconic Aspect active form is re-established at login for an existing talent owner (trikyn-live-ops#104)",
+  "contract": "The hidden passive Draconic Aspect 92128 drives Pyromancer::Refresh to learn the active Draconic Aspect 802117. As with Knight of Xoroth's Brimstone, the passive's aura is not persisted across a save/load and the core does not re-cast hidden class passives at login, so an existing owner re-enters knowing passive 92128 with no aura 92128 and therefore no 802117. This confirms the single login re-establishment heals a second custom class, not only Xoroth: it reproduces that state, runs the login hooks, and requires 802117 to be re-learned. Client action-bar rendering is not observed.",
+  "timeout_ms": 90000,
+  "players": [
+    { "id": "pyro", "race": 1, "class": 24, "level": 60 }
+  ],
+  "steps": [
+    { "action": "wait", "ms": 3000 },
+    { "action": "learn", "actor": "pyro", "spell": 92128 },
+    { "action": "assert", "actor": "pyro", "metric": "aura", "spell": 92128, "equals": 1, "within_ms": 2000 },
+    { "action": "wait", "ms": 1000 },
+    { "action": "assert", "actor": "pyro", "metric": "knows_spell", "spell": 802117, "equals": 1 },
+    { "action": "set_aura", "actor": "pyro", "spell": 92128, "stacks": 0 },
+    { "action": "unlearn", "actor": "pyro", "spell": 802117, "all_specs": true },
+    { "action": "assert", "actor": "pyro", "metric": "aura", "spell": 92128, "equals": 0 },
+    { "action": "assert", "actor": "pyro", "metric": "knows_spell", "spell": 802117, "equals": 0 },
+    { "action": "login_hooks", "actor": "pyro" },
+    { "action": "wait", "ms": 1500 },
+    { "action": "assert", "actor": "pyro", "metric": "aura", "spell": 92128, "equals": 1 },
+    { "action": "assert", "actor": "pyro", "metric": "knows_spell", "spell": 802117, "equals": 1 }
+  ]
+}
