@@ -28,6 +28,21 @@ namespace Acore::Time
 std::tm TimeBreakdown(time_t time = 0);
 }
 
+namespace Acore
+{
+inline std::vector<std::string_view> Tokenize(std::string_view str, char sep, bool keepEmpty)
+{
+    std::vector<std::string_view> tokens;
+    std::size_t start = 0;
+    for (std::size_t end = str.find(sep); end != std::string_view::npos; start = end + 1, end = str.find(sep, start))
+        if (keepEmpty || end > start)
+            tokens.push_back(str.substr(start, end - start));
+    if (keepEmpty || start < str.size())
+        tokens.push_back(str.substr(start));
+    return tokens;
+}
+}
+
 namespace GameTime
 {
 Seconds GetGameTime()
