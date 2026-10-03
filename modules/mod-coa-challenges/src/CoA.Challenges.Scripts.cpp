@@ -3830,4 +3830,3 @@ void Addmod_coa_challengesScripts()
     new CoAChallenges::CoAChallengesSpells();
     new CoAChallenges::CoAChallengesAllCreature();
 }
-
