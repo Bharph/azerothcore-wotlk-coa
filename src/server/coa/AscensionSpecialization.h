@@ -18,6 +18,11 @@ using AscensionSpecializationSwitchGuard =
 
 void AddAscensionSpecializationSwitchGuard(AscensionSpecializationSwitchGuard guard);
 
+std::string AscensionSpecializationSwitchRefusal(Player* player, uint32 activeSpecializationId,
+    uint32 requestedSpecializationId);
+
+void ClearAscensionSpecializationSlots(Player* player);
+
 uint32 ForgetAscensionClassTalents(Player* player);
 
 uint32 GetAscensionTalentRank(Player const* player, uint32 entryId);

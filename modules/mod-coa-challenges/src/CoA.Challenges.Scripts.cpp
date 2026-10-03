@@ -6,6 +6,7 @@
 #include "Random.h"
 #include "AllCreatureScript.h"
 
+
 using namespace Acore::ChatCommands;
 
 namespace CoAChallenges

@@ -18,7 +18,7 @@
           "source": {
             "path": "src/server/coa/CoAScriptLoader.cpp",
             "anchor": "    AddSC_AscensionResourceTalents();",
-            "reviewed_sha256": "efc5c2fd04742edc56d02ecfed6157ee70e4b9a3eeebc9d6328e562b6c5cf3ea"
+            "reviewed_sha256": "5f2b8a95bd6961a343dc595c64012f9437a2311d50832f7ce1f4437c5974151f"
           }
         },
         {
@@ -77,7 +77,7 @@
           "source": {
             "path": "src/server/coa/AscensionCompat.cpp",
             "anchor": "  bool SetTalentRank(Player* player,",
-            "reviewed_sha256": "0e05bc1c32d493b3e7b6275165808671c730cb41b12ec9556463b345c4e0c766"
+            "reviewed_sha256": "90d5b9670ae23a2578170967f65e708d3b4176a9ded772bf8e45d99a6e46f1b3"
           }
         },
         {
@@ -86,7 +86,7 @@
           "source": {
             "path": "src/server/coa/AscensionCompat.cpp",
             "anchor": "  bool ApplyKnownEntriesUpload(Player* player,",
-            "reviewed_sha256": "0e05bc1c32d493b3e7b6275165808671c730cb41b12ec9556463b345c4e0c766"
+            "reviewed_sha256": "90d5b9670ae23a2578170967f65e708d3b4176a9ded772bf8e45d99a6e46f1b3"
           }
         }
       ],
